@@ -4,7 +4,7 @@
  *
  * Name: Rendezvous
  * Description: Group sharing of real-time location on a dynamic map
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author: Andrew Manning <andrew@reticu.li>
  * MinVersion: 1.14
  *
@@ -18,7 +18,7 @@ function rendezvous_module() {}
  * @return string Current plugin version
  */
 function rendezvous_get_version() {
-    return '1.0.5';
+    return '1.0.6';
 }
 
 function rendezvous_load() {
@@ -111,7 +111,39 @@ function rendezvous_load_pdl($a, &$b) {
 }
 
 function rendezvous_content($a) {
-
+		// Export the rendezvous map markers and members in JSON format
+		// URL: /rendezvous/[group_id]/export/markers
+		// URL: /rendezvous/[group_id]/export/members
+		if (argc() === 4 && argv(2) === 'export') {
+			$group = argv(1);
+			$type = argv(3);
+			switch ($type) {
+				case 'members':
+					$x = rendezvous_get_members($group);
+					$data = $x['members'];
+					break;
+				case 'markers':
+					$x = rendezvous_get_markers($group);
+					$data = $x['markers'];
+					break;
+				default:
+					goaway(z_root() . '/rendezvous/' . $group);
+			}
+            if (!$x['success']) {
+				notice('Error exporting .' . $type . EOL);
+				goaway(z_root() . '/rendezvous/' . $group);
+			}
+			if ($data === null) {
+                notice('No '.$type.' found.' . EOL);
+				goaway(z_root() . '/rendezvous/' . $group);
+            } else {
+                header('content-type: application/octet_stream');
+                header('content-disposition: attachment; filename="Rendezvous_' . $group . '_' . $type . '.json"');
+                echo json_encode(array('version' => rendezvous_get_version(), $type => $data), JSON_PRETTY_PRINT);
+                killme();
+            }
+		}
+		// Render standard map view
 		if (argc() > 1) {
 				$group = argv(1);
 				$observer = App::get_observer();
@@ -145,6 +177,7 @@ function rendezvous_content($a) {
 						goaway(z_root());
 				}
 		}
+		// Render the Rendezvous creation tool page for the channel owner
 		if (local_channel()) {
 				$o .= replace_macros(get_markup_template('rendezvous.tpl', 'addon/rendezvous'), array(
 						'$addnewrendezvous' => t('Add new rendezvous'),

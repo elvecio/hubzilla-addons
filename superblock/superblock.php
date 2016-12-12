@@ -14,9 +14,6 @@
  * This function uses some helper code in include/conversation; which handles filtering item authors. 
  * Those function should ultimately be moved to this plugin.
  *
- * @TODO the settings menu presents a somewhat obtuse text list of xchan hashes. These should probably be 
- * expanded and put in a human readable list with names and photos so you can more easily remove people 
- * from jail.  
  */
 
 
@@ -30,6 +27,7 @@ function superblock_load() {
 	register_hook('item_store', 'addon/superblock/superblock.php', 'superblock_item_store');
 	register_hook('directory_item', 'addon/superblock/superblock.php', 'superblock_directory_item');
 	register_hook('api_format_items', 'addon/superblock/superblock.php', 'superblock_api_format_items');
+	register_hook('stream_item', 'addon/superblock/superblock.php', 'superblock_stream_item');
 
 }
 
@@ -44,6 +42,37 @@ function superblock_unload() {
 	unregister_hook('item_store', 'addon/superblock/superblock.php', 'superblock_item_store');
 	unregister_hook('directory_item', 'addon/superblock/superblock.php', 'superblock_directory_item');
 	unregister_hook('api_format_items', 'addon/superblock/superblock.php', 'superblock_api_format_items');
+	unregister_hook('stream_item', 'addon/superblock/superblock.php', 'superblock_stream_item');
+
+}
+
+
+
+class Superblock {
+
+	private $list = [];
+
+	function __construct($channel_id) {
+		$cnf = get_pconfig($channel_id,'system','blocked');
+		if(! $cnf)
+			return;
+		$this->list = explode(',',$cnf);
+	}
+
+	function get_list() {
+		return $this->list;
+	}
+
+	function match($n) {
+		if(! $this->list)
+			return false;
+		foreach($this->list as $l) {
+			if(trim($n) === trim($l)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 }
 
@@ -56,13 +85,32 @@ function superblock_addon_settings(&$a,&$s) {
 	if(! local_channel())
 		return;
 
-	$words = get_pconfig(local_channel(),'system','blocked');
-	if(! $words)
-		$words = '';
+	$cnf = get_pconfig(local_channel(),'system','blocked');
+	if(! $cnf)
+		$cnf = '';
 
-	$sc .= replace_macros(get_markup_template('field_textarea.tpl'), array(
-		'$field'	=> array('superblock-words', t('Comma separated profile URLS to block'), htmlspecialchars($words), ''),
-	));
+	$list = explode(',',$cnf);
+	stringify_array_elms($list,true);
+	$query_str = implode(',',$list);
+	if($query_str) {
+		$r = q("select * from xchan where xchan_hash in ( " . $query_str . " ) ");
+	}
+	else
+		$r = [];
+
+	if($r) {
+		for($x = 0; $x < count($r); $x ++) {
+			$r[$x]['encoded_hash'] = urlencode($r[$x]['xchan_hash']);
+		}
+	}
+
+	$sc = replace_macros(get_markup_template('superblock_list.tpl','addon/superblock'), [
+		'$blocked' => t('Currently blocked'),
+		'$entries' => $r,
+		'$nothing' => (($r) ? '' : t('No channels currently blocked')),
+		'$token' => get_form_security_token('superblock'),
+		'$remove' => t('Remove')
+	]);
 
 	$s .= replace_macros(get_markup_template('generic_addon_settings.tpl'), array(
 		'$addon' 	=> array('superblock', t('"Superblock" Settings'), '', t('Submit')),
@@ -78,13 +126,43 @@ function superblock_addon_settings_post(&$a,&$b) {
 	if(! local_channel())
 		return;
 
-	if($_POST['superblock-submit']) {
-		set_pconfig(local_channel(),'system','blocked',trim($_POST['superblock-words']));
-		info( t('SUPERBLOCK Settings saved.') . EOL);
-	}
+//	if($_POST['superblock-submit']) {
+//		set_pconfig(local_channel(),'system','blocked',trim($_POST['superblock-words']));
+//		info( t('SUPERBLOCK Settings saved.') . EOL);
+//	}
 	
-	build_sync_packet();
+//	build_sync_packet();
 
+
+}
+
+function superblock_stream_item(&$a,&$b) {
+	if(! local_channel())
+		return;
+
+	$sb = new Superblock(local_channel());
+
+	$found = false;
+
+	if(is_array($b['item']) && (! $found)) {
+		if($sb->match($b['item']['author_xchan']))
+			$found = true;
+		elseif($sb->match($b['item']['owner_xchan']))
+			$found = true;
+	}
+
+	if($b['item']['children']) {
+		for($d = 0; $d < count($b['item']['children']); $d ++) {
+			if($sb->match($b['item']['children'][$d]['owner_xchan']))
+				$b['item']['children'][$d]['blocked'] = true;
+			elseif($sb->match($b['item']['children'][$d]['author_xchan']))
+				$b['item']['children'][$d]['blocked'] = true;
+		}
+	}
+
+	if($found) {
+		$b['blocked'] = true;
+	}
 
 }
 
@@ -94,6 +172,8 @@ function superblock_item_store(&$a,&$b) {
 	if(! $b['item']['item_wall'])
 		return;
 
+	$sb = new Superblock($b['item']['uid']);
+
 	$words = get_pconfig($b['item']['uid'],'system','blocked');
 	if(! $words)
 		return;
@@ -101,22 +181,12 @@ function superblock_item_store(&$a,&$b) {
 	$arr = explode(',',$words);
 
 	$found = false;
-	if(count($arr)) {
-		foreach($arr as $word) {
-			if(! strlen(trim($word))) {
-				continue;
-			}
 
-			if(strpos($b['item']['owner_xchan'],$word) !== false) {
-				$found = true;
-				break;
-			}
-			if(strpos($b['item']['author_xchan'],$word) !== false) {
-				$found = true;
-				break;
-			}
-		}
-	}
+	if($sb->match($b['item']['owner_xchan']))
+		$found = true;
+	elseif($sb->match($b['item']['author_xchan']))
+		$found = true;
+
 	if($found) {
 		$b['item']['cancel'] = true;
 	}
@@ -128,38 +198,20 @@ function superblock_item_store(&$a,&$b) {
 
 function superblock_enotify_store(&$a,&$b) {
 
-	$words = get_pconfig($b['uid'],'system','blocked');
-	if($words) {
-		$arr = explode(',',$words);
-	}
-	else {
-		return;
-	}
+	$sb = new Superblock($b['uid']);
 
 	$found = false;
-	if(count($arr)) {
-		foreach($arr as $word) {
-			if(! strlen(trim($word))) {
-				continue;
-			}
 
-			if(strpos($b['sender_hash'],$word) !== false) {
-				$found = true;
-				break;
-			}
-			// also block notifications from any conversations they initiated or own
-			if(is_array($b['parent_item'])) {
-				if(strpos($b['parent_item']['owner_xchan'],$word) !== false) {
-					$found = true;
-					break;
-				}
-				if(strpos($b['parent_item']['author_xchan'],$word) !== false) {
-					$found = true;
-					break;
-				}
-			}
-		}
+	if($sb->match($b['sender_hash']))
+		$found = true;
+
+	if(is_array($b['parent_item']) && (! $found)) {
+		if($sb->match($b['parent_item']['owner_xchan']))
+			$found = true;
+		elseif($sb->match($b['parent_item']['author_xchan']))
+			$found = true;
 	}
+
 	if($found) {
 		$b['abort'] = true;
 	}
@@ -167,35 +219,19 @@ function superblock_enotify_store(&$a,&$b) {
 
 function superblock_api_format_items(&$a,&$b) {
 
-	$arr = null;
 
-	$words = get_pconfig($b['api_user'],'system','blocked');
-	if($words) {
-		$arr = explode(',',$words);
-	}
-
-	if($arr)
-		return;
-
-	$ret = array();
+	$sb = new Superblock($b['api_user']);
+	$ret = [];
 
 	for($x = 0; $x < count($b['items']); $x ++) {
 
 		$found = false;
-		foreach($arr as $word) {
-			if(! strlen(trim($word))) {
-				continue;
-			}
 
-			if(strpos($b['items'][$x]['owner_xchan'],$word) !== false) {
-				$found = true;
-				break;
-			}
-			if(strpos($b['items'][$x]['author_xchan'],$word) !== false) {
-				$found = true;
-				break;
-			}
-		}
+		if($sb->match($b['items'][$x]['owner_xchan']))
+			$found = true;
+		elseif($sb->match($b['items'][$x]['author_xchan']))
+			$found = true;
+
 		if(! $found)
 			$ret[] = $b['items'][$x];
 	}
@@ -210,28 +246,15 @@ function superblock_directory_item(&$a,&$b) {
 	if(! local_channel())
 		return;
 
-	$words = get_pconfig(local_channel(),'system','blocked');
-	if($words) {
-		$arr = explode(',',$words);
-	}
-	else {
-		return;
-	}
 
+	$sb = new Superblock(local_channel());
 
 	$found = false;
-	if(count($arr)) {
-		foreach($arr as $word) {
-			if(! strlen(trim($word))) {
-				continue;
-			}
 
-			if(strpos($b['entry']['hash'],$word) !== false) {
-				$found = true;
-				break;
-			}
-		}
+	if($sb->match($b['entry']['hash'])) {
+		$found = true;
 	}
+
 	if($found) {
 		unset($b['entry']);
 	}
@@ -254,8 +277,8 @@ function superblock_conversation_start(&$a,&$b) {
 	App::$page['htmlhead'] .= <<< EOT
 
 <script>
-function superblockBlock(author) {
-	$.get('superblock?block=' +author, function(data) {
+function superblockBlock(author,item) {
+	$.get('superblock?f=&item=' + item + '&block=' +author, function(data) {
 		location.reload(true);
 	});
 }
@@ -272,6 +295,7 @@ function superblock_item_photo_menu(&$a,&$b) {
 
 	$blocked = false;
 	$author = $b['item']['author_xchan'];
+	$item = $b['item']['id'];
 	if(App::$channel['channel_hash'] == $author)
 		return;
 
@@ -284,7 +308,7 @@ function superblock_item_photo_menu(&$a,&$b) {
 		}
 	}
 
-	$b['author_menu'][ t('Block Completely')] = 'javascript:superblockBlock(\'' . $author . '\'); return false;';
+	$b['author_menu'][ t('Block Completely')] = 'javascript:superblockBlock(\'' . $author . '\',' . $item . '); return false;';
 }
 
 function superblock_module() {}
@@ -298,14 +322,44 @@ function superblock_init(&$a) {
 	$words = get_pconfig(local_channel(),'system','blocked');
 
 	if(array_key_exists('block',$_GET) && $_GET['block']) {
-		if(strlen($words))
-			$words .= ',';
-		$words .= trim($_GET['block']);
+		$r = q("select id from item where id = %d and author_xchan = '%s' limit 1",
+			intval($_GET['item']),
+			dbesc($_GET['block'])
+		);
+		if($r) {
+			if(strlen($words))
+				$words .= ',';
+			$words .= trim($_GET['block']);
+		}
 	}
+
+	if(array_key_exists('unblock',$_GET) && $_GET['unblock']) {
+		if(check_form_security_token('superblock','sectok')) {
+			$newlist = [];
+			$list = explode(',',$words);
+			if($list) {
+				foreach($list as $li) {
+					if($li !== $_GET['unblock']) {
+						$newlist[] = $li;
+					}
+				}
+			}
+
+			$words = implode(',',$newlist);
+		}
+	}
+
+
+
 
 	set_pconfig(local_channel(),'system','blocked',$words);
 	build_sync_packet();
 
 	info( t('superblock settings updated') . EOL );
+
+	if($_GET['unblock'])
+		goaway(z_root() . '/settings/featured');
+
+
 	killme();
 }
