@@ -28,6 +28,7 @@ function superblock_load() {
 	register_hook('directory_item', 'addon/superblock/superblock.php', 'superblock_directory_item');
 	register_hook('api_format_items', 'addon/superblock/superblock.php', 'superblock_api_format_items');
 	register_hook('stream_item', 'addon/superblock/superblock.php', 'superblock_stream_item');
+	register_hook('post_mail', 'addon/superblock/superblock.php', 'superblock_post_mail');
 
 }
 
@@ -43,6 +44,7 @@ function superblock_unload() {
 	unregister_hook('directory_item', 'addon/superblock/superblock.php', 'superblock_directory_item');
 	unregister_hook('api_format_items', 'addon/superblock/superblock.php', 'superblock_api_format_items');
 	unregister_hook('stream_item', 'addon/superblock/superblock.php', 'superblock_stream_item');
+	unregister_hook('post_mail', 'addon/superblock/superblock.php', 'superblock_post_mail');
 
 }
 
@@ -126,14 +128,6 @@ function superblock_addon_settings_post(&$a,&$b) {
 	if(! local_channel())
 		return;
 
-//	if($_POST['superblock-submit']) {
-//		set_pconfig(local_channel(),'system','blocked',trim($_POST['superblock-words']));
-//		info( t('SUPERBLOCK Settings saved.') . EOL);
-//	}
-	
-//	build_sync_packet();
-
-
 }
 
 function superblock_stream_item(&$a,&$b) {
@@ -161,7 +155,7 @@ function superblock_stream_item(&$a,&$b) {
 	}
 
 	if($found) {
-		$b['blocked'] = true;
+		$b['item']['blocked'] = true;
 	}
 
 }
@@ -169,29 +163,40 @@ function superblock_stream_item(&$a,&$b) {
 
 function superblock_item_store(&$a,&$b) {
 
-	if(! $b['item']['item_wall'])
+	if(! $b['item_wall'])
 		return;
 
-	$sb = new Superblock($b['item']['uid']);
-
-	$words = get_pconfig($b['item']['uid'],'system','blocked');
-	if(! $words)
-		return;
-
-	$arr = explode(',',$words);
+	$sb = new Superblock($b['uid']);
 
 	$found = false;
 
-	if($sb->match($b['item']['owner_xchan']))
+	if($sb->match($b['owner_xchan']))
 		$found = true;
-	elseif($sb->match($b['item']['author_xchan']))
+	elseif($sb->match($b['author_xchan']))
 		$found = true;
 
 	if($found) {
-		$b['item']['cancel'] = true;
+		$b['cancel'] = true;
 	}
 	return;
 }
+
+function superblock_post_mail(&$a,&$b) {
+
+	$sb = new Superblock($b['channel_id']);
+
+	$found = false;
+
+	if($sb->match($b['from_xchan']))
+		$found = true;
+
+	if($found) {
+		$b['cancel'] = true;
+	}
+	return;
+}
+
+
 
 
 
@@ -348,8 +353,6 @@ function superblock_init(&$a) {
 			$words = implode(',',$newlist);
 		}
 	}
-
-
 
 
 	set_pconfig(local_channel(),'system','blocked',$words);

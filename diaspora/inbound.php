@@ -943,6 +943,10 @@ function diaspora_comment($importer,$xml,$msg) {
 	if($pubcomment === false)
 		$pubcomment = 1;
 
+	if(($pubcomment) && (! $contact))
+		$contact = find_diaspora_person_by_handle($msg['author']);
+
+
 	// Friendica is currently truncating guids at 64 chars
 	$search_guid = $parent_guid;
 	if(strlen($parent_guid) == 64)
@@ -1062,15 +1066,13 @@ function diaspora_comment($importer,$xml,$msg) {
 
 	if(strcasecmp($diaspora_handle,$msg['author']) == 0)
 		$person = $contact;
-	else {
+	else
 		$person = $xchan;
 
-		if(! is_array($person)) {
-			logger('diaspora_comment: unable to find author details');
-			return;
-		}
+	if(! is_array($person)) {
+		logger('diaspora_comment: unable to find author details');
+		return;
 	}
-
 
 	$body = markdown_to_bb($text);
 
