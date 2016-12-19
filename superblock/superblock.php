@@ -4,7 +4,7 @@
 /**
  * Name: superblock
  * Description: block people
- * Version: 1.0
+ * Version: 2.0
  * Author: Mike Macgirvin
  * Maintainer: Mike Macgirvin <mike@macgirvin.com> 
  * MinVersion: 1.1.3
@@ -22,7 +22,7 @@ function superblock_load() {
 	register_hook('feature_settings', 'addon/superblock/superblock.php', 'superblock_addon_settings');
 	register_hook('feature_settings_post', 'addon/superblock/superblock.php', 'superblock_addon_settings_post');
 	register_hook('conversation_start', 'addon/superblock/superblock.php', 'superblock_conversation_start');
-	register_hook('item_photo_menu', 'addon/superblock/superblock.php', 'superblock_item_photo_menu');
+	register_hook('thread_author_menu', 'addon/superblock/superblock.php', 'superblock_item_photo_menu');
 	register_hook('enotify_store', 'addon/superblock/superblock.php', 'superblock_enotify_store');
 	register_hook('item_store', 'addon/superblock/superblock.php', 'superblock_item_store');
 	register_hook('directory_item', 'addon/superblock/superblock.php', 'superblock_directory_item');
@@ -38,7 +38,7 @@ function superblock_unload() {
 	unregister_hook('feature_settings', 'addon/superblock/superblock.php', 'superblock_addon_settings');
 	unregister_hook('feature_settings_post', 'addon/superblock/superblock.php', 'superblock_addon_settings_post');
 	unregister_hook('conversation_start', 'addon/superblock/superblock.php', 'superblock_conversation_start');
-	unregister_hook('item_photo_menu', 'addon/superblock/superblock.php', 'superblock_item_photo_menu');
+	unregister_hook('thread_author_menu', 'addon/superblock/superblock.php', 'superblock_item_photo_menu');
 	unregister_hook('enotify_store', 'addon/superblock/superblock.php', 'superblock_enotify_store');
 	unregister_hook('item_store', 'addon/superblock/superblock.php', 'superblock_item_store');
 	unregister_hook('directory_item', 'addon/superblock/superblock.php', 'superblock_directory_item');
@@ -313,7 +313,13 @@ function superblock_item_photo_menu(&$a,&$b) {
 		}
 	}
 
-	$b['author_menu'][ t('Block Completely')] = 'javascript:superblockBlock(\'' . $author . '\',' . $item . '); return false;';
+	$b['menu'][] = [           
+			'menu' => 'superblock',
+            'title' => t('Block Completely'),
+            'icon' => 'fw',
+            'action' => 'superblockBlock(\'' . $author . '\',' . $item . '); return false;',
+            'href' => '#'
+	];
 }
 
 function superblock_module() {}
