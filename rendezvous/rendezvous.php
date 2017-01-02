@@ -18,7 +18,7 @@ function rendezvous_module() {}
  * @return string Current plugin version
  */
 function rendezvous_get_version() {
-    return '1.0.6';
+    return '1.0.7';
 }
 
 function rendezvous_load() {

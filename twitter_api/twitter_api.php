@@ -97,8 +97,6 @@ function twitter_api_register($x) {
         api_register_func('api/z/1.0/config','api_statusnet_config',false);
         api_register_func('api/statusnet/version','api_statusnet_version',false);
         api_register_func('api/friendica/version','api_friendica_version',false);
-        api_register_func('api/red/version','api_friendica_version',false);
-        api_register_func('api/z/1.0/version','api_friendica_version',false);
         api_register_func('api/friends/ids','api_friends_ids',true);
         api_register_func('api/followers/ids','api_followers_ids',true);
         api_register_func('api/1.1/friends/ids','api_friends_ids',true);

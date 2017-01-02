@@ -301,6 +301,7 @@ function superblock_item_photo_menu(&$a,&$b) {
 	$blocked = false;
 	$author = $b['item']['author_xchan'];
 	$item = $b['item']['id'];
+
 	if(App::$channel['channel_hash'] == $author)
 		return;
 
@@ -312,6 +313,9 @@ function superblock_item_photo_menu(&$a,&$b) {
 			}
 		}
 	}
+
+	if($blocked)
+		return;
 
 	$b['menu'][] = [           
 			'menu' => 'superblock',

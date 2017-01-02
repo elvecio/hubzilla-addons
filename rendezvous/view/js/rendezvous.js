@@ -97,7 +97,7 @@ rv.icons = {
 
 rv.onMapClick = function (e) {
 	rv.selectedLatLon = e.latlng;
-	if ($('.leaflet-popup-content').is(":visible")) {
+	if ($('.leaflet-popup-content').is(":visible") && typeof(rv.popup._closeButton) !== 'undefined') {
 		rv.popup._closeButton.click();
 	} else {
 		rv.popup
@@ -535,16 +535,22 @@ rv.getMembers = function () {
 
 rv.checkProximity = function (mid) {
 	
-	if(rv.proximity[mid] > 0) {
+	if(typeof(rv.proximity[mid]) !== 'undefined' && rv.proximity[mid] !== null && rv.proximity[mid].distance > 0) {
+		window.console.log(rv.proximity[mid].distance);
 		if (rv.gps.lat !== null && rv.gps.lng !== null) {
 			// Calculate the distance in meters between member mid and self
 			var distance = rv.distanceBetween(rv.members[mid], rv.gps);
-			if (distance < rv.proximity[mid]) {
-				rv.issue_notification('Proximity alert! ' + rv.members[mid].name  + 
-									' is within ' + rv.proximity[mid] + ' meters of your location.', 
-							'Rendezvous')
+			if (distance < rv.proximity[mid].distance) {
+				var proximityMessage = 'Proximity alert! ' + rv.members[mid].name  + ' is within ' + rv.proximity[mid].distance + ' meters of your location.';
+				rv.issue_notification(proximityMessage, 'Rendezvous');
+				$('#generic-message').html('<p>' + proximityMessage + '</p>');
+				$('#generic-message').dialog();			
+				Cookies.remove('proximity', {path: ''});
 				rv.proximity[mid] = null;
+				return true;
 			}
+		} else {
+			return false;
 		}
 	} else {
 		return false;
@@ -611,7 +617,7 @@ rv.memberMenu = function (tDiff, tUnit) {
 	setTimeout(function () {
 		$('.delete-member').on('click', rv.deleteMember);
 		$('.member-proximity').on('click', function () {
-			if(typeof(rv.proximity[rv.currentMemberID]) !== 'undefined' && typeof(rv.proximity[rv.currentMemberID].distance) !== 'undefined' && rv.proximity[rv.currentMemberID].distance > 0) {
+			if(typeof(rv.proximity[rv.currentMemberID]) !== 'undefined' && rv.proximity[rv.currentMemberID] !== null && typeof(rv.proximity[rv.currentMemberID].distance) !== 'undefined' && rv.proximity[rv.currentMemberID].distance > 0) {
 				$('#member-proximity-distance').val(rv.proximity[rv.currentMemberID].distance);
 			} else {
 				$('#member-proximity-distance').val(0);

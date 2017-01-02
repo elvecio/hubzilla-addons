@@ -120,6 +120,7 @@
 				<div id="identity-deleted-message" title="{{$newIdentity}}">
 						<p>{{$identityDeletedMessage}}</p>
 				</div>
+				<div id="generic-message" title="Message"></div>
 				<script src="/addon/rendezvous/view/js/leaflet.js"></script>
 				<script src="/addon/rendezvous/view/js/leaflet-gps.js"></script>
 				<script>
