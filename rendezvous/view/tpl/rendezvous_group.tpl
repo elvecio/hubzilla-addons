@@ -81,6 +81,9 @@
 								<label for="new-marker-name">{{$nameText}}</label>
 								<input type="text" name="new-marker-name" id="new-marker-name" placeholder="{{$myMarkerPlaceholder}}" value="" class="text ui-widget-content ui-corner-all">
 								<br>
+								<label for="new-marker-proximity-distance">{{$newMarkerDialog.0}}</label>
+								<input type="number" size="10" min="0" step="1" name="new-marker-proximity-distance" id="new-marker-proximity-distance" placeholder="{{$newMarkerDialog.1}}" value="" class="text ui-widget-content ui-corner-all">
+								<br>
 								<label for="new-marker-description">{{$descriptionText}}</label>
 								<br>
 								<textarea rows="5" cols="30" name="new-marker-description" id="new-marker-description" placeholder="{{$myMarkerDescriptionPlaceholder}}" class="text ui-widget-content ui-corner-all"></textarea>
@@ -97,6 +100,9 @@
 								<label for="edit-marker-name">{{$nameText}}</label>
 								<input type="text" name="edit-marker-name" id="edit-marker-name" placeholder="{{$myMarkerPlaceholder}}" value="" class="text ui-widget-content ui-corner-all">
 								<br>
+								<label for="edit-marker-proximity-distance">{{$newMarkerDialog.0}}</label>
+								<input type="number" size="10" min="0" step="1" name="edit-marker-proximity-distance" id="edit-marker-proximity-distance" placeholder="{{$newMarkerDialog.1}}" value="" class="text ui-widget-content ui-corner-all">
+								<br>
 								<label for="edit-marker-description">{{$descriptionText}}</label>
 								<br>
 								<textarea rows="5" cols="30" name="edit-marker-description" id="edit-marker-description" placeholder="{{$myMarkerDescriptionPlaceholder}}" class="text ui-widget-content ui-corner-all"></textarea>
@@ -107,15 +113,14 @@
 						</form>
 				</div>
 				<div id="member-proximity-form" title="{{$memberProximity}}">
-						
-						<form>
-							<fieldset style='width: 300px;'>
-								<label for="member-proximity-distance">{{$proximityDialog.0}}</label>
-								<input type="number" size="10" min="0" step="1" name="member-proximity-distance" id="member-proximity-distance" placeholder="{{$proximityDialog.1}}" value="" class="text ui-widget-content ui-corner-all">
-								<!-- Allow form submission with keyboard without duplicating the dialog button -->
-								<input type="submit" tabindex="-1" style="position:absolute; top:-1000px">
-							</fieldset>
-						</form>
+					<form>
+						<fieldset style='width: 300px;'>
+							<label for="member-proximity-distance">{{$proximityDialog.0}}</label>
+							<input type="number" size="10" min="0" step="1" name="member-proximity-distance" id="member-proximity-distance" placeholder="{{$proximityDialog.1}}" value="" class="text ui-widget-content ui-corner-all">
+							<!-- Allow form submission with keyboard without duplicating the dialog button -->
+							<input type="submit" tabindex="-1" style="position:absolute; top:-1000px">
+						</fieldset>
+					</form>
 				</div>
 				<div id="identity-deleted-message" title="{{$newIdentity}}">
 						<p>{{$identityDeletedMessage}}</p>

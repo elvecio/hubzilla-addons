@@ -223,8 +223,6 @@ rv.getMarkers = function () {
 				});
 				
 				var id = markers[i].id;
-				
-
 				var name = markers[i].name;
 				var description = markers[i].description;
 				rv.addMarkerToMap(marker, id);
@@ -237,6 +235,8 @@ rv.getMarkers = function () {
 					lat: markers[i].lat,
 					lng: markers[i].lng
 				};
+				
+				rv.checkMarkerProximity(id);
 			}
 
 		} else {
@@ -267,6 +267,7 @@ rv.addMarkerToMap = function (marker, id) {
 rv.createMarker = function (e) {
 	var name = $('#new-marker-name').val();
 	var description = $('#new-marker-description').val();
+	var distance = parseInt($('#new-marker-proximity-distance').val());
 
 	$.post("/rendezvous/v1/create/marker", {
 		group: rv.group.id,
@@ -289,6 +290,17 @@ rv.createMarker = function (e) {
 				name: name,
 				description: description
 			};
+			
+			// Verify that distance is an integer
+			if (Number(distance) === distance && distance % 1 === 0) {
+				rv.proximity[id] = { distance: distance } ;
+				if(rv.proximity[id]) {
+					Cookies.set('proximity', rv.proximity, {expires: 365, path: ''});
+				}
+			} else {
+				alert('Distance value must be an integer');
+			}
+			
 		} else {
 			alert('Error creating marker');
 			window.console.log(data['message']);
@@ -296,6 +308,7 @@ rv.createMarker = function (e) {
 		rv.newMarkerDialog.dialog('close');
 		$('#new-marker-description').val('');
 		$('#new-marker-name').val('');
+		$('#new-marker-proximity-distance').val('');
 		return false;
 	},
 			'json');
@@ -324,8 +337,13 @@ rv.markerMenu = function () {
 rv.openEditMarkerDialog = function (e) {
 	var name = rv.markers[rv.currentMarkerID].name;
 	var description = rv.markers[rv.currentMarkerID].description;
+	var distance = 0;
+	if( typeof(rv.proximity[rv.currentMarkerID]) !== 'undefined' && rv.proximity[rv.currentMarkerID] !== null ) {
+		distance = rv.proximity[rv.currentMarkerID].distance;
+	}
 	$('#edit-marker-name').val(name);
 	$('#edit-marker-description').val(description);
+	$('#edit-marker-proximity-distance').val(distance);
 
 	rv.editMarkerDialog.dialog('open');
 };
@@ -536,7 +554,6 @@ rv.getMembers = function () {
 rv.checkProximity = function (mid) {
 	
 	if(typeof(rv.proximity[mid]) !== 'undefined' && rv.proximity[mid] !== null && rv.proximity[mid].distance > 0) {
-		window.console.log(rv.proximity[mid].distance);
 		if (rv.gps.lat !== null && rv.gps.lng !== null) {
 			// Calculate the distance in meters between member mid and self
 			var distance = rv.distanceBetween(rv.members[mid], rv.gps);
@@ -545,8 +562,32 @@ rv.checkProximity = function (mid) {
 				rv.issue_notification(proximityMessage, 'Rendezvous');
 				$('#generic-message').html('<p>' + proximityMessage + '</p>');
 				$('#generic-message').dialog();			
-				Cookies.remove('proximity', {path: ''});
 				rv.proximity[mid] = null;
+				Cookies.set('proximity', rv.proximity, {expires: 365, path: ''});
+				return true;
+			}
+		} else {
+			return false;
+		}
+	} else {
+		return false;
+	}
+	
+};
+
+rv.checkMarkerProximity = function (id) {
+	
+	if(typeof(rv.proximity[id]) !== 'undefined' && rv.proximity[id] !== null && rv.proximity[id].distance > 0) {
+		if (rv.gps.lat !== null && rv.gps.lng !== null) {
+			// Calculate the distance in meters between marker and self
+			var distance = rv.distanceBetween(rv.markers[id], rv.gps);
+			if (distance < rv.proximity[id].distance) {
+				var proximityMessage = '<p><strong>You are near <i>' + rv.markers[id].name + '</i></strong></p><p>' + rv.markers[id].description + '</p>';
+				rv.issue_notification(proximityMessage, 'Rendezvous');
+				$('#generic-message').html('<div>' + proximityMessage + '</div>');
+				$('#generic-message').dialog();
+				rv.proximity[id] = null;
+				Cookies.set('proximity', rv.proximity, {expires: 365, path: ''});
 				return true;
 			}
 		} else {
@@ -664,13 +705,58 @@ rv.deleteMember = function (e) {
 	return false;
 };
 
-rv.editProximityAlertDialog = $("#member-proximity-form").dialog({
+rv.editMarkerProximityAlertDialog = $("#marker-proximity-form").dialog({
 	autoOpen: false,
 	height: 400,
 	width: 350,
 	modal: true,
 	buttons: {
 		"Set alert": function () {
+			rv.editMarkerProximityAlert();
+			rv.editMarkerProximityAlertDialog.dialog("close");
+		},
+		Cancel: function () {
+			rv.editMarkerProximityAlertDialog.dialog("close");
+		}
+	},
+	close: function () {
+		return false;
+	}
+});
+
+rv.editMarkerProximityAlertDialog.find("form").on("submit", function (event) {
+	event.preventDefault();
+	rv.editMarkerProximityAlertDialog();
+	rv.editMarkerProximityAlertDialog.dialog("close");
+});
+
+rv.editMarkerProximityAlert = function () {
+	
+	if (rv.markers[rv.currentMarkerID]) {
+		var distance = parseInt($('#edit-marker-proximity-distance').val());
+		// Verify that distance is an integer
+		if (Number(distance) === distance && distance % 1 === 0) {
+			rv.proximity[rv.currentMarkerID] = { distance: distance } ;
+			if(rv.proximity[rv.currentMarkerID]) {
+				Cookies.set('proximity', rv.proximity, {expires: 365, path: ''});
+			}
+		} else {
+			alert('Distance value must be an integer');
+		}
+	}
+	rv.editMarkerProximityAlertDialog.dialog("close");
+	return false;
+};
+
+
+
+rv.editProximityAlertDialog = $("#member-proximity-form").dialog({
+	autoOpen: false,
+	height: 400,
+	width: 350,
+	modal: true,
+	buttons: {
+		"Set reminder": function () {
 			rv.editProximityAlert();
 			rv.editProximityAlertDialog.dialog("close");
 		},
@@ -771,9 +857,12 @@ rv.newMarkerDialog = $("#new-marker-form").dialog({
 	modal: true,
 	buttons: {
 		"Create marker": function () {
-			$(".leaflet-popup-close-button")[0].click();
+			if(typeof($(".leaflet-popup-close-button")[0]) !== 'undefined') {
+				$(".leaflet-popup-close-button")[0].click();
+			}
 			rv.popup._closeButton.click();
 			rv.createMarker();
+			rv.newMarkerDialog.dialog("close");
 		},
 		Cancel: function () {
 			rv.newMarkerDialog.dialog("close");
@@ -786,13 +875,16 @@ rv.newMarkerDialog = $("#new-marker-form").dialog({
 
 rv.newMarkerDialog.find("form").on("submit", function (event) {
 	event.preventDefault();
-	rv.popup._closeButton.click();
+	if(typeof($(".leaflet-popup-close-button")[0]) !== 'undefined') {
+		$(".leaflet-popup-close-button")[0].click();
+	}
 	rv.createMarker();
 });
 
 rv.editMarker = function () {
 	var name = $('#edit-marker-name').val();
 	var description = $('#edit-marker-description').val();
+	var distance = parseInt($('#edit-marker-proximity-distance').val());
 	var id = rv.currentMarkerID;
 	$.post("/rendezvous/v1/update/marker", {
 		id: id,
@@ -806,12 +898,25 @@ rv.editMarker = function () {
 		if (data['success']) {
 			rv.markers[id].name = name;
 			rv.markers[id].description = description;
+			// Verify that distance is an integer
+			if (Number(distance) === distance && distance % 1 === 0) {
+				rv.proximity[id] = { distance: distance } ;
+				if(rv.proximity[id]) {
+					Cookies.set('proximity', rv.proximity, {expires: 365, path: ''});
+				}
+			} else {
+				alert('Distance value must be an integer');
+			}
 		} else {
 			window.console.log(data['message']);
 		}
 		rv.editMarkerDialog.dialog('close');
+		if(typeof($(".leaflet-popup-close-button")[0]) !== 'undefined') {
+			$(".leaflet-popup-close-button")[0].click();
+		}
 		$('#edit-marker-description').val('');
 		$('#edit-marker-name').val('');
+		$('#edit-marker-proximity-distance').val('');
 		return false;
 	},
 			'json');
