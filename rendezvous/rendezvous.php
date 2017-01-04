@@ -4,7 +4,7 @@
  *
  * Name: Rendezvous
  * Description: Group sharing of real-time location on a dynamic map
- * Version: 1.0.6
+ * Version: 1.0.8
  * Author: Andrew Manning <andrew@reticu.li>
  * MinVersion: 1.14
  *
@@ -18,7 +18,7 @@ function rendezvous_module() {}
  * @return string Current plugin version
  */
 function rendezvous_get_version() {
-    return '1.0.7';
+    return '1.0.8';
 }
 
 function rendezvous_load() {
@@ -170,6 +170,13 @@ function rendezvous_content($a) {
 								'$deleteMember' => t('Delete member'),
 								'$memberProximity' => t('Edit proximity alert'),
 								'$proximityDialog' => array(t('A proximity alert will be issued when this member is within a certain radius of you.<br><br>Enter a radius in meters (0 to disable):'), t('distance')),
+								'$newMarkerDialog' => array(t('Marker proximity alert'), 
+									t('A proximity alert will be issued when you are within a certain radius of the marker location.<br><br>Enter a radius in meters (0 to disable):')),
+								'$editMarkerProximityDialog' => array(t('Marker proximity alert'), 
+									t('A proximity alert will be issued when you are within a certain radius of the marker location.<br><br>Enter a radius in meters (0 to disable):'), 
+									t('distance'),
+									t('Reminder note'),
+									t('Enter a note to be displayed when you are within the specified proximity...')),
 						));
 						return $o;
 				} else {
@@ -574,8 +581,13 @@ function rendezvous_create_marker($name, $description, $rid, $mid, $secret, $cre
 						dbesc($lng)
 
 		);
-		if($r) {
-				return array('success' => true, 'message' => '', 'marker' => $r);
+		$rr = q("SELECT id from rendezvous_markers where mid = %d and rid = '%s' and created = '%s' and deleted = 0 LIMIT 1",
+						dbesc($mid),
+						dbesc($rid),
+						dbesc($created)
+		);
+		if($rr) {
+				return array('success' => true, 'message' => '', 'id' => $rr[0]['id']);
 		} else {
 				return array('success' => false, 'message' => 'Error creating marker');
 		}
