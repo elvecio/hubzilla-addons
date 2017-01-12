@@ -602,7 +602,7 @@ function api_get_status($xchan_hash) {
 	return $status_info;
 }
 
-function api_status_show( $type){
+function api_status_show($type){
 	$user_info = api_get_user();
 
 	// get last public message
@@ -621,53 +621,10 @@ function api_status_show( $type){
 	);
 
 	if($lastwall){
-		$lastwall = $lastwall[0];
-			
-		$in_reply_to_status_id = '';
-		$in_reply_to_user_id = '';
-		$in_reply_to_screen_name = '';
-
-		if($lastwall['author_xchan'] != $lastwall['owner_xchan']) {
-			$w = q("select * from abook left join xchan on abook_xchan = xchan_hash where
-				xchan_hash = '%s' limit 1",
-				dbesc($lastwall['owner_xchan'])
-			);
-			if($w) {
-				$in_reply_to_user_id = $w[0]['abook_id'];
-				$in_reply_to_screen_name = substr($w[0]['xchan_addr'],0,strpos($w[0]['xchan_addr'],'@'));
-			}
-		}
-			
-		if ($lastwall['parent']!=$lastwall['id']) {
-			$in_reply_to_status_id=$lastwall['thr_parent'];
-			if(! $in_reply_to_user_id) {
-				$in_reply_to_user_id = $user_info['id'];
-				$in_reply_to_screen_name = $user_info['screen_name'];
-			}
-		}
-		unobscure($lastwall);  
-		$status_info = array(
-			'text' => html2plain(prepare_text($lastwall['body'],$lastwall['mimetype']), 0),
-			'truncated' => false,
-			'created_at' => api_date($lastwall['created']),
-			'in_reply_to_status_id' => $in_reply_to_status_id,
-			'source' => (($lastwall['app']) ? $lastwall['app'] : 'web'),
-			'id' => ($lastwall['id']),
-			'in_reply_to_user_id' => $in_reply_to_user_id,
-			'in_reply_to_screen_name' => $in_reply_to_screen_name,
-			'geo' => '',
-			'favorited' => false,
-			'coordinates' => $lastwall['coord'],
-			'place' => $lastwall['location'],
-			'contributors' => ''					
-		);
-		$status_info['user'] = $user_info;
-		if(array_key_exists('status',$status_info['user']))
-			unset($status_info['user']['status']);
+		$result = api_format_items($lastwall,$user_info);
 	}
 
-	return  api_apply_template('status', $type, array('$status' => $status_info));
-		
+	return api_apply_template('status', $type, array('$status' => (($result) ? $result[0] : [])));		
 }
 
 		
@@ -1275,7 +1232,7 @@ function api_format_message($item, $recipient, $sender) {
 	return $ret;
 }
 
-function api_format_items($r,$user_info) {
+function api_format_items($r,$user_info,$type = 'json') {
 
 	//logger('api_format_items: ' . print_r($r,true));
 
