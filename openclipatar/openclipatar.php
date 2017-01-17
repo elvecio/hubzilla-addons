@@ -8,6 +8,7 @@
  * Maintainer: Habeas Codice <https://federated.social>
  */
 
+
 function openclipatar_load() {
 	register_hook('profile_photo_content_end', 'addon/openclipatar/openclipatar.php', 'openclipatar_profile_photo_content_end');
 }
@@ -210,59 +211,61 @@ function openclipatar_content(&$a) {
 		$x = z_fetch_url('https://openclipart.org/image/250px/svg_to_png/' .$id . '/' . $id . '.png',true);
 		if($x['success'])
 			$imagedata = $x['body'];
-		
-		$ph = photo_factory($imagedata, 'image/png');
-		if(! $ph->is_valid())
-			return t('Unknown error. Please try again later.');
-			
-		// create a unique resource_id
-		$hash = photo_new_resource();
-		
-		$width  = $ph->getWidth();
-		$height = $ph->getHeight();
 
-		// save an original or "scale 0" image
-		$p = array('aid' => get_account_id(), 'uid' => local_channel(), 'resource_id' => $hash, 'filename' => $id.'.png', 'album' => t('Profile Photos'), 'imgscale' => 0);
-		$r = $ph->save($p);
-		if($r) {
-			if(($width > 1024 || $height > 1024) && (! $errors))
-				$ph->scaleImage(1024);
+		$localfile = 'store/[data]/tmp_photo' . $id . '.png';
+		@file_put_contents($localfile,$imagedata);
 
-			$p['imgscale'] = 1;
-			$r1 = $ph->save($p);
+		$hash = random_string();
 
-			if(($width > 640 || $height > 640) && (! $errors))
-				$ph->scaleImage(640);
+		$attach_params = [
+			'src'         => $localfile,
+			'filename'    => $id . '.png',
+			'resource_id' => $hash,
+			'type'        => 'image/png'
+		];
 
-			$p['imgscale'] = 2;
-			$r2 = $ph->save($p);
+		$y = attach_store($chan,get_observer_hash(),'import',$attach_params);
+		if($y['success']) {
+			$ph = photo_factory($imagedata, 'image/png');
+			if(! $ph->is_valid()) {
+				logger('import failure');
+				return t('Unknown error. Please try again later.');
+			}
+			else
+				logger('import success');
 
-			if(($width > 320 || $height > 320) && (! $errors))
-				$ph->scaleImage(320);
 
-			$p['imgscale'] = 3;
-			$r3 = $ph->save($p);
+			$width  = $ph->getWidth();
+			$height = $ph->getHeight();
 
-			// ensure squareness at first, subsequent scales keep ratio
-			$ph->scaleImageSquare(175);
-			$p['imgscale'] = 4;
-			$r = $ph->save($p);
-			if($r === false)
-				$photo_failure = true;
+			$r = q("SELECT * FROM photo WHERE resource_id = '%s' AND uid = %d AND imgscale = %d LIMIT 1",
+				dbesc($hash),
+				intval($chan['channel_id']),
+				intval(3)
+			);
+           	if($r) {
+				$base_image = $r[0];
+				$p = array('aid' => get_account_id(), 'uid' => local_channel(), 'resource_id' => $hash, 'filename' => $id.'.png', 'album' => $base_image['album'], 'imgscale' => 4);
 
-			$ph->scaleImage(80);
-			$p['imgscale'] = 5;
-			$r = $ph->save($p);
-			if($r === false)
-				$photo_failure = true;
+				$ph->scaleImageSquare(300);
+				$r1 = $ph->save($p);
+				if($r1 === false)
+					$photo_failure = true;
 
-			$ph->scaleImage(48);
-			$p['imgscale'] = 6;
-			$r = $ph->save($p);
-			if($r === false)
-				$photo_failure = true;
+				$ph->scaleImage(80);
+				$p['imgscale'] = 5;
+				$r2 = $ph->save($p);
+				if($r2 === false)
+					$photo_failure = true;
+
+				$ph->scaleImage(48);
+				$p['imgscale'] = 6;
+				$r3 = $ph->save($p);
+				if($r3 === false)
+					$photo_failure = true;
+			}
 		}
-		
+
 		$is_default_profile = 1;
 		if($_REQUEST['profile']) {
 			$r = q("select id, is_default from profile where id = %d and uid = %d limit 1",
