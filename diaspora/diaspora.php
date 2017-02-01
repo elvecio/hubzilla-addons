@@ -36,6 +36,7 @@ function diaspora_load() {
 	register_hook('post_local','addon/diaspora/diaspora.php','diaspora_post_local');
 	register_hook('well_known','addon/diaspora/diaspora.php','diaspora_well_known');
 	register_hook('create_identity','addon/diaspora/diaspora.php','diaspora_create_identity');
+	register_hook('import_foreign_channel_data','addon/diaspora/diaspora.php','diaspora_import_foreign_channel_data');
 
 	diaspora_init_relay();
 }
@@ -52,6 +53,7 @@ function diaspora_unload() {
 	unregister_hook('post_local','addon/diaspora/diaspora.php','diaspora_post_local');
 	unregister_hook('well_known','addon/diaspora/diaspora.php','diaspora_well_known');
 	unregister_hook('create_identity','addon/diaspora/diaspora.php','diaspora_create_identity');
+	unregister_hook('import_foreign_channel_data','addon/diaspora/diaspora.php','diaspora_import_foreign_channel_data');
 }
 
 
@@ -528,16 +530,17 @@ function diaspora_discover(&$a,&$b) {
 				);
 			}
 			else {
-
-				$r = q("insert into xchan ( xchan_hash, xchan_guid, xchan_pubkey, xchan_addr, xchan_url, xchan_name, xchan_network, xchan_name_date ) values ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s') ",
-					dbesc($addr),
-					dbesc($guid),
-					dbesc($pubkey),
-					dbesc($addr),
-					dbesc($profile),
-					dbesc($vcard['fn']),
-					dbesc($network),
-					dbescdate(datetime_convert())
+				$r = xchan_store_lowlevel(
+					[
+						'xchan_hash'         => $addr,
+						'xchan_guid'         => $guid,
+						'xchan_pubkey'       => $pubkey,
+						'xchan_addr'         => $addr,
+						'xchan_url'          => $profile,
+						'xchan_name'         => $vcard['fn'],
+						'xchan_name_date'    => datetime_convert(),
+						'xchan_network'      => $network
+					]
 				);
 			}
 
@@ -546,18 +549,21 @@ function diaspora_discover(&$a,&$b) {
 			);
 
 			if(! $r) {
-
-				$r = q("insert into hubloc ( hubloc_guid, hubloc_hash, hubloc_addr, hubloc_network, hubloc_url, hubloc_host, hubloc_callback, hubloc_updated, hubloc_primary ) values ('%s','%s','%s','%s','%s','%s','%s','%s', 1)",
-					dbesc($guid),
-					dbesc($addr),
-					dbesc($addr),
-					dbesc($network),
-					dbesc(trim($diaspora_base,'/')),
-					dbesc($hostname),
-					dbesc($notify),
-					dbescdate(datetime_convert())
+				$r = hubloc_store_lowlevel(
+					[
+						'hubloc_guid'     => $guid,
+						'hubloc_hash'     => $addr,
+						'hubloc_addr'     => $addr,
+						'hubloc_network'  => $network,
+						'hubloc_url'      => trim($diaspora_base,'/'),
+						'hubloc_host'     => $hostname,
+						'hubloc_callback' => $notify,
+						'hubloc_updated'  => datetime_convert(),
+						'hubloc_primary'  => 1
+					]
 				);
 			}
+
 			$photos = import_xchan_photo($vcard['photo'],$addr);
 			$r = q("update xchan set xchan_photo_date = '%s', xchan_photo_l = '%s', xchan_photo_m = '%s', xchan_photo_s = '%s', xchan_photo_mimetype = '%s' where xchan_hash = '%s'",
 				dbescdate(datetime_convert('UTC','UTC',$arr['photo_updated'])),
@@ -850,3 +856,14 @@ function diaspora_create_identity($a,$b) {
 	}
 
 }
+
+function diaspora_import_foreign_channel_data($a,&$data) {
+
+	if(array_key_exists('user',$data) && array_key_exists('version',$data)) {
+		require_once('addon/diaspora/import_diaspora.php');
+		$data['handled'] = true;
+		import_diaspora_account($data);
+		return;
+	}
+}
+		

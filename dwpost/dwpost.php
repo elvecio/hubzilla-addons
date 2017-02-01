@@ -167,7 +167,7 @@ function dwpost_send(&$a,&$b) {
 
 	$dw_username = get_pconfig($b['uid'],'dwpost','dw_username');
 	$dw_password = z_unobscure(get_pconfig($b['uid'],'dwpost','dw_password'));
-	$dw_blog = 'http://www.dreamwidth.org/interface/xmlrpc';
+	$dw_blog = 'https://www.dreamwidth.org/interface/xmlrpc';
 
 	if($dw_username && $dw_password && $dw_blog) {
 
@@ -215,10 +215,12 @@ EOT;
 
 		logger('dwpost: data: ' . $xml, LOGGER_DATA);
 
-		if($dw_blog !== 'test')
-			$x = z_post_url($dw_blog,$xml,array('headers' => array("Content-Type: text/xml")));
-		logger('posted to dreamwidth: ' . print_r($x,true), LOGGER_DEBUG);
+		if($dw_blog !== 'test') {
+			$recurse = 0;
+			$x = z_post_url($dw_blog,$xml,$recurse,array('headers' => array("Content-Type: text/xml")));
+		}
 
+		logger('posted to dreamwidth: ' . print_r($x,true), LOGGER_DEBUG);
 	}
 }
 

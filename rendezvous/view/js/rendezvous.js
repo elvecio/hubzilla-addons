@@ -220,6 +220,7 @@ rv.getMarkers = function () {
 				$(newLiEl).on('click', function (e) {
 					rv.map.panTo(new L.LatLng(rv.markers[e.target.id.substring(7)].lat, rv.markers[e.target.id.substring(7)].lng));
 					rv.markers[e.target.id.substring(7)].marker.openPopup();
+					window.history.pushState({}, '', window.location.origin + '/rendezvous/' + rv.group.id + '/marker/' + e.target.id.substring(7) + '/' + rv.map.getZoom());
 				});
 				
 				var id = markers[i].id;
@@ -238,7 +239,8 @@ rv.getMarkers = function () {
 				
 				rv.checkMarkerProximity(id);
 			}
-
+		
+			rv.centerOnItem();
 		} else {
 			window.console.log(data['message']);
 		}
@@ -247,6 +249,26 @@ rv.getMarkers = function () {
 	},
 			'json');
 
+};
+
+rv.centerOnItem = function () {
+	
+	if(rv.centerOn !== null) {
+		console.log('centerOn is not null: ' + JSON.stringify(rv.centerOn));
+		var zoom = parseInt(rv.centerOn.zoom);
+		if(rv.centerOn.type === 'marker') {
+			var markerID = parseInt(rv.centerOn.id);
+			if(typeof(rv.markers[markerID]) !== 'undefined' && rv.markers[markerID] !== null) {
+				//console.log('markerID: ' + markerID);
+				rv.map.panTo(new L.LatLng(rv.markers[markerID].lat, rv.markers[markerID].lng));
+				rv.markers[markerID].marker.openPopup();
+				rv.map.setView([rv.markers[markerID].lat, rv.markers[markerID].lng], zoom);
+				rv.options.fitMarkers = rv.options.fitMembers = false;
+				rv.centerOn = null;
+			}
+		}
+	}
+	
 };
 
 rv.addMarkerToMap = function (marker, id) {
@@ -331,7 +353,7 @@ rv.markerMenu = function () {
 	if (rv.markers[rv.currentMarkerID]) {
 		markerInfo = '<center><b>' + rv.markers[rv.currentMarkerID].name + '</b><br>' + rv.markers[rv.currentMarkerID].description + '<br><br>';
 	}
-
+	window.history.pushState({}, '', window.location.origin + '/rendezvous/' + rv.group.id + '/marker/' + rv.currentMarkerID + '/' + rv.map.getZoom());
 	return markerInfo + $('#edit-marker-button-wrapper').html() + '</center>';
 };
 rv.openEditMarkerDialog = function (e) {
@@ -542,7 +564,8 @@ rv.getMembers = function () {
 				rv.identityDeletedDialog.dialog('open');
 			}
 			$('#number-members').html(locatedMembers);
-			rv.zoomToFitMembers();
+			//rv.centerOnItem();
+			//rv.zoomToFitMembers();
 		} else {
 			window.console.log(data['message']);
 		}
@@ -794,6 +817,10 @@ rv.editProximityAlert = function () {
 };
 
 rv.zoomToFitMembers = function () {
+	if(rv.centerOn !== null) {
+		rv.options.fitMarkers = rv.options.fitMembers = false;
+		return false;
+	}
 	var markers = [];
 	if (rv.options.fitMembers === true) {
 		rv.options.fitMembers = false;

@@ -133,26 +133,21 @@ class Openid extends \Zotlabs\Web\Controller {
 	
 				$mimetype = guess_image_type($pphoto);
 	
-		        $x = q("insert into xchan ( xchan_hash, xchan_guid, xchan_guid_sig, xchan_pubkey, xchan_photo_mimetype,
-	                xchan_photo_l, xchan_addr, xchan_url, xchan_connurl, xchan_follow, xchan_connpage, xchan_name, xchan_network, xchan_photo_date, 
-					xchan_name_date, xchan_hidden)
-	                values ( '%s', '%s', '%s', '%s' , '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', 1) ",
-		            dbesc($url),
-	    	        dbesc(''),
-	        	    dbesc(''),
-	            	dbesc(''),
-		            dbesc($mimetype),
-	    	        dbesc($pphoto),
-	        	    dbesc($addr),
-	            	dbesc($url),
-		            dbesc(''),
-	    	        dbesc(''),
-	        	    dbesc(''),
-	            	dbesc($name),
-		            dbesc($network),
-	    	        dbesc(datetime_convert()),
-	        	    dbesc(datetime_convert())
-	        	);
+		        $x = xchan_store_lowlevel(
+					[
+						'xchan_hash'           => $url,
+						'xchan_photo_mimetype' => $mimetype,
+						'xchan_photo_l'        => $pphoto,
+						'xchan_addr'           => $addr,
+						'xchan_url'            => $url,
+						'xchan_name'           => $name,
+						'xchan_network'        => $network,
+						'xchan_photo_date'     => datetime_convert(),
+						'xchan_name_date'      => datetime_convert(),
+						'xchan_hidden'         => 1
+					]
+				);
+
 				if($x) {
 					$r = q("select * from xchan where xchan_hash = '%s' limit 1",
 						dbesc($url)
