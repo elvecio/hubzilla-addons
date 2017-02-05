@@ -1,6 +1,6 @@
 <?php /** @file */
 
-require_once('include/bb2diaspora.php');
+require_once('include/markdown.php');
 
 // used in Diaspora communications to provide a server copy of a sent post in XML format.
 

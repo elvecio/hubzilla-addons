@@ -1,6 +1,6 @@
 <?php
 
-require_once('include/bb2diaspora.php');
+require_once('include/markdown.php');
 require_once('include/group.php');
 require_once('include/follow.php');
 require_once('include/photo/photo_driver.php');

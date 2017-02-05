@@ -38,11 +38,27 @@ require_once('include/api.php');
 
 function twitter_api_load() {
 	Zotlabs\Extend\Hook::register('api_register','addon/twitter_api/twitter_api.php','twitter_api_register');
+	Zotlabs\Extend\Hook::register('module_loaded','addon/twitter_api/twitter_api.php','twitter_api_load_module');
+	Zotlabs\Extend\Hook::register('build_pagehead','addon/twitter_api/twitter_api.php','twitter_api_build_pagehead');
+
 }
 
 function twitter_api_unload() {
 	Zotlabs\Extend\Hook::unregister_by_file('addon/twitter_api/twitter_api.php');
 }
+
+function twitter_api_load_module(&$b) {
+    if($b['module'] === 'rsd_xml') {
+        require_once('addon/twitter_api/Mod_rsd_xml.php');
+		$b['controller'] = new \Zotlabs\Module\Rsd_xml(); 
+        $b['installed'] = true;
+    }
+}
+
+function twitter_api_build_pagehead($x) {
+	head_add_link([ 'rel' => 'EditURI', 'type' => 'application/rsd+xml', 'href' => z_root() . '/rsd.xml' ]);
+}
+
 
 
 function twitter_api_register($x) {

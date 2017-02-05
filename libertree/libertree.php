@@ -157,7 +157,7 @@ function libertree_send(&$a,&$b) {
 	logger('sitename: ' . print_r($ltree_source,true));
 	if($ltree_url && $ltree_api_token && $ltree_blog && $ltree_source) {
 
-		require_once('include/bb2diaspora.php');
+		require_once('include/markdown.php');
 		$tag_arr = array();
 		$tags = '';
 		$x = preg_match_all('/\#\[(.*?)\](.*?)\[/',$b['tag'],$matches,PREG_SET_ORDER);

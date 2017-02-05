@@ -920,6 +920,12 @@ function diaspora_comment($importer,$xml,$msg) {
 	$parent_guid = notags(unxmlify($xml['parent_guid']));
 	$diaspora_handle = notags(diaspora_get_author($xml));
 
+	$created_at = ((array_key_exists('created_at',$xml)) 
+		? datetime_convert('UTC','UTC',unxmlify($xml['created_at'])) : datetime_convert());
+
+	$thr_parent = ((array_key_exists('thread_parent_guid',$xml)) 
+		? notags(unxmlify($xml['thread_parent_guid'])) : '');
+
 	$text = unxmlify($xml['text']);
 	$author_signature = notags(unxmlify($xml['author_signature']));
 	$parent_author_signature = (($xml['parent_author_signature']) ? notags(unxmlify($xml['parent_author_signature'])) : '');
@@ -1138,12 +1144,11 @@ function diaspora_comment($importer,$xml,$msg) {
 	$datarray['verb'] = ACTIVITY_POST;
 	$datarray['mid'] = $guid;
 	$datarray['parent_mid'] = $parent_item['mid'];
+	$datarray['thr_parent'] = $thr_parent;
 
 	// set the route to that of the parent so downstream hubs won't reject it.
 	$datarray['route'] = $parent_item['route'];
-
-	// No timestamps for comments? OK, we'll the use current time.
-	$datarray['changed'] = $datarray['created'] = $datarray['edited'] = datetime_convert();
+	$datarray['changed'] = $datarray['created'] = $datarray['edited'] = $created_at;
 	$datarray['item_private'] = $parent_item['item_private'];
 
 	$datarray['owner_xchan'] = $parent_item['owner_xchan'];

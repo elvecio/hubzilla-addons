@@ -1,0 +1,4 @@
+url: $baseurl/firefox
+requires: local_channel
+name: Firefox Share
+photo: $baseurl/addon/firefox/firefox.png

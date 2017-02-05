@@ -14,7 +14,7 @@
 
 require_once('include/crypto.php');
 require_once('include/items.php');
-require_once('include/bb2diaspora.php');
+require_once('include/markdown.php');
 require_once('include/queue_fn.php');
 require_once('include/feedutils.php');
 
