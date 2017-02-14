@@ -69,7 +69,7 @@ function logrot_logger(&$a,&$b) {
 	if(($x === false) || ($x < $logrotsize))
 		return;
 
-	rename($b['filename'],$logrotpath . '/logfile-' . datetime_convert('UTC','UTC','now','Y-m-d_H:i') . '.out');
+	@rename($b['filename'],$logrotpath . '/logfile-' . datetime_convert('UTC','UTC','now','Y-m-d_H:i') . '.out');
 
 	$d = glob($logrotpath . '/logfile-*.out');
 	if(count($d) > $logretained) {

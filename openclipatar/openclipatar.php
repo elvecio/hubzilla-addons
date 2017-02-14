@@ -266,6 +266,8 @@ function openclipatar_content(&$a) {
 			}
 		}
 
+		photo_profile_setperms(local_channel(),$hash,$_REQUEST['profile']);
+
 		$is_default_profile = 1;
 		if($_REQUEST['profile']) {
 			$r = q("select id, is_default from profile where id = %d and uid = %d limit 1",
@@ -287,10 +289,7 @@ function openclipatar_content(&$a) {
 				intval(PHOTO_PROFILE),
 				intval(local_channel()),
 				dbesc($hash)
-				);
-			
-			require_once('include/photos.php');
-			profile_photo_set_profile_perms(local_channel()); //Reset default profile photo permissions to public
+			);
 			
 			// only the default needs reload since it uses canonical url -- despite the slightly ambiguous message, left it so as to re-use translations
 			info( t('Shift-reload the page or clear browser cache if the new photo does not display immediately.') . EOL);

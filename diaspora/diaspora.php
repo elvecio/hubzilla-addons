@@ -684,11 +684,9 @@ function diaspora_feature_settings(&$a,&$s) {
 	diaspora_init_relay();
 
 	$dspr_allowed = get_pconfig(local_channel(),'system','diaspora_allowed');
-	$pubcomments = get_pconfig(local_channel(),'system','diaspora_public_comments');
-	if($pubcomments === false)
-		$pubcomments = 1;
-	$hijacking = get_pconfig(local_channel(),'system','prevent_tag_hijacking');
-	$followed = get_pconfig(local_channel(),'diaspora','followed_tags');
+	$pubcomments  = get_pconfig(local_channel(),'system','diaspora_public_comments',1);
+	$hijacking    = get_pconfig(local_channel(),'system','prevent_tag_hijacking');
+	$followed     = get_pconfig(local_channel(),'diaspora','followed_tags');
 	if(is_array($followed))
 		$hashtags = implode(',',$followed);
 	else

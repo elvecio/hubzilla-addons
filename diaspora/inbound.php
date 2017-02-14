@@ -398,34 +398,27 @@ function diaspora_request($importer,$xml) {
 		return;
 	}
 
-	$my_perms = false;
+	$p = \Zotlabs\Access\Permissions::connect_perms($importer['channel_id']);
+	$my_perms  = $p['perms'];
+	$automatic = $p['automatic'];
 
-	$role = get_pconfig($importer['channel_id'],'system','permissions_role');
-	if($role) {
-		$x = \Zotlabs\Access\PermissionRoles::role_perms($role);
-		if($x['perms_auto'])
-			$my_perms = \Zotlabs\Access\Permissions::FilledPerms($x['perms_connect']);
-	}
-	if(! $my_perms)
-		$my_perms = \Zotlabs\Access\Permissions::FilledAutoperms($importer['channel_id']);
-				
 	$closeness = get_pconfig($importer['channel_id'],'system','new_abook_closeness');
 	if($closeness === false)
 		$closeness = 80;
 
-	$r = q("insert into abook ( abook_account, abook_channel, abook_xchan, abook_my_perms, abook_their_perms, abook_closeness, abook_created, abook_updated, abook_connected, abook_dob, abook_pending, abook_instance ) values ( %d, %d, '%s', %d, %d, %d, '%s', '%s', '%s', '%s', %d, '%s' )",
-		intval($importer['channel_account_id']),
-		intval($importer['channel_id']),
-		dbesc($ret['xchan_hash']),
-		intval($default_perms),
-		intval($their_perms),
-		intval($closeness),
-		dbesc(datetime_convert()),
-		dbesc(datetime_convert()),
-		dbesc(datetime_convert()),
-		dbesc(NULL_DATE),
-		intval(($my_perms) ? 0 : 1),
-		dbesc(z_root())
+	$r = abook_store_lowlevel(
+		[
+			'abook_account'   => intval($importer['channel_account_id']),
+			'abook_channel'   => intval($importer['channel_id']),
+			'abook_xchan'     => $ret['xchan_hash'],
+			'abook_closeness' => intval($closeness),
+			'abook_created'   => datetime_convert(),
+			'abook_updated'   => datetime_convert(),
+			'abook_connected' => datetime_convert(),
+			'abook_dob'       => NULL_DATE,
+			'abook_pending'   => intval(($automatic) ? 0 : 1),
+			'abook_instance'  => z_root()
+		]
 	);
 		
 	if($my_perms)
@@ -552,8 +545,21 @@ function diaspora_post($importer,$xml,$msg) {
 
 	$body = markdown_to_bb(diaspora_get_body($xml));
 
-	if($xml['photo']) {
-		$body = '[img]' . $xml['photo']['remote_photo_path'] . $xml['photo']['remote_photo_name'] . '[/img]' . "\n\n" . $body;
+	$photos = null;
+
+	// photo could be a single photo or an array of photos.
+	// Turn singles into an array of one. 
+
+	if(array_key_exists('photo',$xml))
+		$photos = ((array_key_exists('guid',$xml['photo'])) ? array($xml['photo']) : $xml['photo']);
+
+	if($photos) {
+		$tmp = '';
+		foreach($photos as $ph) {
+			$tmp .= '[img]' . $ph['remote_photo_path'] . $ph['remote_photo_name'] . '[/img]' . "\n\n";
+		}
+			
+		$body = $tmp . $body;
 		$body = scale_external_images($body);
 	}
 
@@ -940,14 +946,10 @@ function diaspora_comment($importer,$xml,$msg) {
 
 	$contact = diaspora_get_contact_by_handle($importer['channel_id'],$msg['author']);
 
-
-	$pubcomment = get_pconfig($importer['channel_id'],'system','diaspora_public_comments');
+	$pubcomment = get_pconfig($importer['channel_id'],'system','diaspora_public_comments',1);
 
 	// by default comments on public posts are allowed from anybody on Diaspora. That is their policy.
 	// Once this setting is set to something we'll track your preference and it will over-ride the default. 
-
-	if($pubcomment === false)
-		$pubcomment = 1;
 
 	if(($pubcomment) && (! $contact))
 		$contact = find_diaspora_person_by_handle($msg['author']);
@@ -1050,13 +1052,6 @@ function diaspora_comment($importer,$xml,$msg) {
 			logger('diaspora_comment: comment author verification failed.');
 			return;
 		}
-
-		//$author_signature = base64_decode($author_signature);
-
-		//if(! rsa_verify($signed_data,$author_signature,$key,'sha256')) {
-		//	logger('diaspora_comment: comment author verification failed.');
-		//	return;
-		//}
 
 		// No parent_author_signature, so let's assume we're relaying the post. Create one. 
 	

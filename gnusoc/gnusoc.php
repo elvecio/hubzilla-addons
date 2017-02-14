@@ -484,10 +484,16 @@ function gnusoc_follow_from_feed(&$a,&$b) {
 
 	$x = \Zotlabs\Access\PermissionRoles::role_perms('social');
 	$their_perms = \Zotlabs\Access\Permissions::FilledPerms($x['perms_connect']);
+
 	$r = q("select * from abook where abook_channel = %d and abook_xchan = '%s' limit 1",
 		intval($importer['channel_id']),
 		dbesc($xchan['xchan_hash'])
 	);
+
+	$p = \Zotlabs\Access\Permissions::connect_perms($importer['channel_id']);
+	$my_perms  = $p['perms'];
+	$automatic = $p['automatic'];
+
 
 	if($r) {
 		$contact = $r[0];
@@ -509,32 +515,26 @@ function gnusoc_follow_from_feed(&$a,&$b) {
 			set_abconfig($importer['channel_id'],$contact['abook_xchan'],'their_perms',$k,$v);
 	}
 	else {
-		$role = get_pconfig($importer['channel_id'],'system','permissions_role');
-		if($role) {
-			$x = \Zotlabs\Access\PermissionRoles::role_perms($role);
-			if($x['perms_auto'])
-				$my_perms = \Zotlabs\Access\Permissions::FilledPerms($x['perms_connect']);
-		}
-		if(! $my_perms)
-			$my_perms = \Zotlabs\Access\Permissions::FilledAutoperms($importer['channel_id']);
 
 		$closeness = get_pconfig($importer['channel_id'],'system','new_abook_closeness');
 		if($closeness === false)
 			$closeness = 80;
 		
-
-		$r = q("insert into abook ( abook_account, abook_channel, abook_xchan, abook_closeness, abook_created, abook_updated, abook_connected, abook_dob, abook_pending, abook_instance ) values ( %d, %d, '%s', %d, '%s', '%s', '%s', '%s', %d, '%s' )",
-			intval($importer['channel_account_id']),
-			intval($importer['channel_id']),
-			dbesc($xchan['xchan_hash']),
-			intval($closeness),
-			dbesc(datetime_convert()),
-			dbesc(datetime_convert()),
-			dbesc(datetime_convert()),
-			dbesc(NULL_DATE),
-			intval(($my_perms) ? 0 : 1),
-			dbesc(z_root())
+		$r = abook_store_lowlevel(
+			[
+				'abook_account'   => intval($importer['channel_account_id']),
+				'abook_channel'   => intval($importer['channel_id']),
+				'abook_xchan'     => $xchan['xchan_hash'],
+				'abook_closeness' => intval($closeness),
+				'abook_created'   => datetime_convert(),
+				'abook_updated'   => datetime_convert(),
+				'abook_connected' => datetime_convert(),
+				'abook_dob'       => NULL_DATE,
+				'abook_pending'   => intval(($automatic) ? 0 : 1),
+				'abook_instance'  => z_root()
+			]
 		);
+
 		if($r) {
 
 			if($my_perms)
