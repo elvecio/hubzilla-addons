@@ -8,7 +8,7 @@ class Gitwiki extends \Zotlabs\Web\Controller {
 
 	function init() {
 
-		head_add_css('addon/gitwiki/gitwiki.css');
+		head_add_css('/addon/gitwiki/gitwiki.css');
 
 
 		// Determine which channel's wikis to display to the observer
@@ -274,7 +274,7 @@ class Gitwiki extends \Zotlabs\Web\Controller {
 		));
 
 		if($p['mimeType'] != 'text/bbcode')
-			head_add_js('library/ace/ace.js');	// Ace Code Editor
+			head_add_js('/library/ace/ace.js');	// Ace Code Editor
 
 		return $o;
 	}

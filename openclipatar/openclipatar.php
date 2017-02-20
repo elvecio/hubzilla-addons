@@ -117,7 +117,7 @@ function openclipatar_profile_photo_content_end(&$a, &$o) {
 	$sortids = get_config('openclipatar', 'sortids');
 	$prefclipmsg = get_config('openclipatar', 'prefclipmsg');
 	
-	head_add_css('addon/openclipatar/openclipatar.css');
+	head_add_css('/addon/openclipatar/openclipatar.css');
 	
 	$t = get_markup_template('avatars.tpl', 'addon/openclipatar/');
 	

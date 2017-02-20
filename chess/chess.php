@@ -362,7 +362,9 @@ function chess_post(&$a) {
  * @return string HTML content
  */
 function chess_content($a) {
+
     // Include the custom CSS and JavaScript necessary for the chess board
+
     head_add_css('/addon/chess/view/css/chessboard.css');
     head_add_js('/addon/chess/view/js/chessboard.js');
 
@@ -371,16 +373,17 @@ function chess_content($a) {
     $which = null;
     if(argc() > 1) {
         $which = argv(1);
-	$user = q("select channel_id from channel where channel_address = '%s' and channel_removed = 0  limit 1",
-		dbesc($which)
-	);
+		$user = q("select channel_id from channel where channel_address = '%s' and channel_removed = 0  limit 1",
+			dbesc($which)
+		);
 
-	if(!$user) {
-		notice( t('Requested channel is not available.') . EOL );
-		App::$error = 404;
-		return;
-	}
+		if(!$user) {
+			notice( t('Requested channel is not available.') . EOL );
+			App::$error = 404;
+			return;
+		}
     }
+
     if(! $which) {
             if(local_channel()) {
                     $channel = App::get_channel();

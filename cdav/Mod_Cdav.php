@@ -789,7 +789,7 @@ class Cdav extends \Zotlabs\Web\Controller {
 */
 		require_once 'vendor/autoload.php';
 
-		head_add_css('addon/cdav/view/css/cdav.css');
+		head_add_css('/addon/cdav/view/css/cdav.css');
 
 		if(argv(1) === 'calendar') {
 			$caldavBackend = new \Sabre\CalDAV\Backend\PDO($pdo);
@@ -799,12 +799,12 @@ class Cdav extends \Zotlabs\Web\Controller {
 		//Display calendar(s) here
 		if(argc() == 2 && argv(1) === 'calendar') {
 
-			head_add_css('library/fullcalendar/fullcalendar.css');
-			head_add_css('addon/cdav/view/css/cdav_calendar.css');
+			head_add_css('/library/fullcalendar/fullcalendar.css');
+			head_add_css('/addon/cdav/view/css/cdav_calendar.css');
 
-			head_add_js('library/moment/moment.min.js', 1);
-			head_add_js('library/fullcalendar/fullcalendar.min.js', 1);
-			head_add_js('library/fullcalendar/locale-all.js', 1);
+			head_add_js('/library/moment/moment.min.js', 1);
+			head_add_js('/library/fullcalendar/fullcalendar.min.js', 1);
+			head_add_js('/library/fullcalendar/locale-all.js', 1);
 
 			foreach($calendars as $calendar) {
 				$editable = (($calendar['share-access'] == 2) ? 'false' : 'true');  // false/true must be string since we're passing it to javascript
@@ -1006,7 +1006,7 @@ class Cdav extends \Zotlabs\Web\Controller {
 			if(!$displayname)
 				return;
 
-			head_add_css('addon/cdav/view/css/cdav_addressbook.css');
+			head_add_css('/addon/cdav/view/css/cdav_addressbook.css');
 
 			$o = '';
 

@@ -14,8 +14,9 @@ function b2tbtn_load() { register_hook('page_end', 'addon/b2tbtn/b2tbtn.php', 'b
 function b2tbtn_unload() { unregister_hook('page_end', 'addon/b2tbtn/b2tbtn.php', 'b2tbtn_active'); }
 
 function b2tbtn_active(&$a,&$b) { 
+
     head_add_css('/addon/b2tbtn/view/css/b2tbtn.css');
-    head_add_js('/addon/b2tbtn/view/js/b2tbtn.js');
+
     $b .= "
 <script>
 $(document).ready(function(){
@@ -44,8 +45,6 @@ $(document).ready(function(){
 
 });
 </script>";
-	$b .= '
-<p id="back-top">
-		<a href="#top"><span></span></a>
-	</p>';
+
+	$b .= '<p id="back-top"><a href="#top"><span></span></a></p>';
 } 
