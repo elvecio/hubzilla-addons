@@ -267,6 +267,9 @@ function openclipatar_content(&$a) {
 		}
 
 		photo_profile_setperms(local_channel(),$hash,$_REQUEST['profile']);
+		$sync = attach_export_data($chan,$hash);
+		if($sync)
+			build_sync_packet($chan['channel_id'],array('file' => array($sync)));
 
 		$is_default_profile = 1;
 		if($_REQUEST['profile']) {
