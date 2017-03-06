@@ -3,9 +3,25 @@
 function nodeinfo_content(&$a) {
 
 
-	// We have to lie and say we're redmatrix because the schema was defined a bit too rigidly and
+	// We have to lie and say we're redmatrix because the schema was defined a bit too rigidly
 
-	if(argc() > 1 && argv(1) === '1.0') {
+	$hidden = get_config('diaspora','hide_in_statistics');
+
+	if($hidden) {
+		$arr = [
+			'version' => '1.0',
+			'software' => [ 'name' => 'redmatrix', 'version' => '0.0' ],
+			'protocols' => [ 'inbound' => array('zot'), 'outbound' => array('zot') ],
+			'services' => [],
+			'openRegistrations' => false,
+			'usage' => [ 'users' => [ 'total' => 1, 'activeHalfyear' => 1, 'activeMonth' => 1 ],
+				'localPosts' => 1,
+				'localComments' => 1
+			]
+		];
+
+	}
+	elseif(argc() > 1 && argv(1) === '1.0') {
 		$arr = array(
 
 			'version' => '1.0',

@@ -208,7 +208,7 @@ function nsfw_prepare_body(&$a,&$b) {
 	}	
 	if($found) {
 		$rnd = random_string(8);
-		$b['html'] = '<div id="nsfw-wrap-' . $rnd . '" class="btn btn-warning" onclick="openClose(\'nsfw-html-' . $rnd . '\'); openClose(\'nsfw-photo-' . $rnd . '\');">' . sprintf( t('%s - view'),$orig_word ) . '</div><div id="nsfw-html-' . $rnd . '" style="display: none; " >' . $b['html'] . '</div>';
+		$b['html'] = '<div class="text-center"><button id="nsfw-wrap-' . $rnd . '" class="btn btn-warning" type="button" onclick="openClose(\'nsfw-html-' . $rnd . '\'); openClose(\'nsfw-photo-' . $rnd . '\');">' . sprintf( t('%s - view'),$orig_word ) . '</button></div><div id="nsfw-html-' . $rnd . '" style="display: none; " >' . $b['html'] . '</div>';
 		$b['photo'] = (($b['photo']) ? '<div id="nsfw-photo-' . $rnd . '" style="display: none; " >' . $b['photo'] . '</div>' : '');
 	}
 }

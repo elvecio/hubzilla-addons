@@ -53,18 +53,21 @@ function statistics_json_init() {
 	if(! get_config('statistics_json','total_users'))
 		statistics_json_cron($a,$b);
 
+	$hidden = get_config('diaspora','hide_in_statistics');
+	
+
 	$statistics = array(
 		"name" => get_config('system','sitename'),
 		"network" => Zotlabs\Lib\System::get_platform_name(),
-		"version" => Zotlabs\Lib\System::get_project_version(),
-		"registrations_open" => (get_config('system','register_policy') != 0),
-		"total_users" => get_config('statistics_json','total_users'),
-		"active_users_halfyear" => get_config('statistics_json','active_users_halfyear'),
-		"active_users_monthly" => get_config('statistics_json','active_users_monthly'),
-		"local_posts" => get_config('statistics_json','local_posts'),
-		"local_comments" => get_config('statistics_json','local_comments'),
-		"twitter" => (bool) get_config('statistics_json','twitter'),
-		"wordpress" => (bool) get_config('statistics_json','wordpress')
+		"version" => (($hidden) ? '0.0' : Zotlabs\Lib\System::get_project_version()),
+		"registrations_open" => (($hidden) ? 0 : (get_config('system','register_policy') != 0)),
+		"total_users" => (($hidden) ? 1 : get_config('statistics_json','total_users')),
+		"active_users_halfyear" => (($hidden) ? 1 : get_config('statistics_json','active_users_halfyear')),
+		"active_users_monthly" => (($hidden) ? 1 : get_config('statistics_json','active_users_monthly')),
+		"local_posts" => (($hidden) ? 1 : get_config('statistics_json','local_posts')),
+		"local_comments" => (($hidden) ? 1 : get_config('statistics_json','local_comments')),
+		"twitter" => (($hidden) ? false : (bool) get_config('statistics_json','twitter')),
+		"wordpress" => (($hidden) ? false : (bool) get_config('statistics_json','wordpress'))
 	);
 
 	header("Content-Type: application/json");
@@ -76,6 +79,7 @@ function statistics_json_init() {
 function statistics_json_cron($a,$b) {
 
 	logger('statistics_json_cron: cron_start');
+
 
 
 	$r = q("select count(channel_id) as total_users from channel left join account on account_id = channel_account_id

@@ -1886,7 +1886,7 @@ function diaspora_retraction($importer,$xml,$msg = null) {
 	}
 	elseif(($type === 'Post') || ($type === 'StatusMessage') || ($type === 'Comment') || ($type === 'Like')) {
 		$r = q("select * from item where mid = '%s' and uid = %d limit 1",
-			dbesc('guid'),
+			dbesc($guid),
 			intval($importer['channel_id'])
 		);
 		if($r) {

@@ -92,13 +92,16 @@ function webmention_process($url,$source) {
 	$fields = $h->fetch();
 
 	if($fields) {
-		foreach($fields as $field => $content) {
-			if($field === 'content-type') {
-				$html_content = true;                    
-				continue;
+		foreach($fields as $y) {
+			if(array_key_exists('content-type',$y)) {
+				$type = explode(';',$y['content-type']);
+				if($type && trim($type[0]) === 'text/html') {
+					$html_content = true;                    
+					continue;
+				}
 			}
-            if($field === 'link') {
-				webmention_process_links($content,$links);
+            if(array_key_exists('link',$y)) {
+				webmention_process_links($y['link'],$links);
 				continue;
             }
         }

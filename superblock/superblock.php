@@ -29,6 +29,7 @@ function superblock_load() {
 	register_hook('api_format_items', 'addon/superblock/superblock.php', 'superblock_api_format_items');
 	register_hook('stream_item', 'addon/superblock/superblock.php', 'superblock_stream_item');
 	register_hook('post_mail', 'addon/superblock/superblock.php', 'superblock_post_mail');
+	register_hook('activity_widget', 'addon/superblock/superblock.php', 'superblock_activity_widget');
 
 }
 
@@ -45,6 +46,7 @@ function superblock_unload() {
 	unregister_hook('api_format_items', 'addon/superblock/superblock.php', 'superblock_api_format_items');
 	unregister_hook('stream_item', 'addon/superblock/superblock.php', 'superblock_stream_item');
 	unregister_hook('post_mail', 'addon/superblock/superblock.php', 'superblock_post_mail');
+	unregister_hook('activity_widget', 'addon/superblock/superblock.php', 'superblock_activity_widget');
 
 }
 
@@ -262,6 +264,27 @@ function superblock_directory_item(&$a,&$b) {
 
 	if($found) {
 		unset($b['entry']);
+	}
+}
+
+
+function superblock_activity_widget(&$a,&$b) {
+
+	if(! local_channel())
+		return;
+
+	$sb = new Superblock(local_channel());
+
+	$found = false;
+
+	if($b['entries']) {
+		$output = [];
+		foreach($b['entries'] as $x) {
+			if(! $sb->match($x['author_xchan'])) {
+				$output[] = $x;
+			}
+		}
+		$b['entries'] = $output;
 	}
 }
 
