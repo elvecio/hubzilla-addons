@@ -4,9 +4,9 @@
  *
  * Name: Chess
  * Description: Hubzilla plugin for decentralized, identity-aware chess games powered by chessboard.js
- * Version: 0.8.4
+ * Version: 0.8.5
  * Author: Andrew Manning <https://grid.reticu.li/channel/andrewmanning/>
- * MinVersion: 1.3.3
+ * MinVersion: 2.0
  * 
  */
 
@@ -19,7 +19,7 @@ define ( 'ACTIVITY_OBJ_CHESSGAME',   NAMESPACE_ZOT  . '/activity/chessgame' );
  * @return string Current plugin version
  */
 function chess_get_version() {
-    return '0.8.4';
+    return '0.8.5';
 }
 
 function chess_load() {

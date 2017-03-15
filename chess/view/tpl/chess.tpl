@@ -37,6 +37,26 @@
         }
         chess_board.resize();
     };
+	
+    var chess_delete_game = function (game_id) {
+        var answer = confirm("Delete game?");
+        if (!answer) {
+            return false;
+        }        
+		$.post("chess/delete", {game_id: game_id}, 
+            function(data) {
+                if (data['status']) {
+                    $("#chess-game-"+game_id).remove();
+					if(typeof(chess_game_id) !== 'undefined' && chess_game_id === game_id) {
+						document.location.href = '/chess';
+					}
+                } else {
+                    window.console.log('Error deleting: ' + game_id + ':' + data['errormsg']);
+                }
+                return false;
+            },
+        'json');
+    }
     
     $(document).ready(chess_init);
 
