@@ -33,7 +33,8 @@ $(document).ready(function() {
 		}
 	}
 
-	function doAdd() {
+	function doAdd(e) {
+		e.preventDefault();
 		var what = $(this).data('add');
 		var id = $(this).data('id');
 		var element = '#template-form-' + what;
@@ -164,24 +165,24 @@ $(document).ready(function() {
 
 <div class="generic-content-wrapper">
 	<div class="section-title-wrapper">
-		<button type="button" class="btn btn-success btn-xs pull-right" onclick="openClose('create_form')"><i class="fa fa-plus-circle"></i> {{$add_card}}</button>
+		<button type="button" class="btn btn-success btn-sm float-right" onclick="openClose('create_form')"><i class="fa fa-plus-circle"></i> {{$add_card}}</button>
 		<h2>{{$displayname}}</h2>
 	</div>
 	<div id="create_form" class="section-content-tools-wrapper">
 		<form id="card_form_new" method="post" action="">
 			<input type="hidden" name="target" value="{{$id}}">
 			<div class="dropdown pull-right">
-				<button data-toggle="dropdown" type="button" class="btn btn-default btn-sm dropdown-toggle"><i class="fa fa-plus"></i> {{$add_field}}</button>
-				<ul class="dropdown-menu">
-					<li class="add-vcard-org" style="display: none"><a href="#" data-add="vcard-org" data-id="new" class="add-field" onclick="return false;">{{$org_label}}</a></li>
-					<li class="add-vcard-title" style="display: none"><a href="#" data-add="vcard-title" data-id="new" class="add-field" onclick="return false;">{{$title_label}}</a></li>
-					<li class="add-vcard-tel"><a href="#" data-add="vcard-tel" data-id="new" class="add-field" onclick="return false;">{{$tel_label}}</a></li>
-					<li class="add-vcard-email"><a href="#" data-add="vcard-email" data-id="new" class="add-field" onclick="return false;">{{$email_label}}</a></li>
-					<li class="add-vcard-impp"><a href="#" data-add="vcard-impp" data-id="new" class="add-field" onclick="return false;">{{$impp_label}}</a></li>
-					<li class="add-vcard-url"><a href="#" data-add="vcard-url" data-id="new" class="add-field" onclick="return false;">{{$url_label}}</a></li>
-					<li class="add-vcard-adr"><a href="#" data-add="vcard-adr" data-id="new" class="add-field" onclick="return false;">{{$adr_label}}</a></li>
-					<li class="add-vcard-note"><a href="#" data-add="vcard-note" data-id="new" class="add-field" onclick="return false;">{{$note_label}}</a></li>
-				</ul>
+				<button data-toggle="dropdown" type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle"><i class="fa fa-plus"></i> {{$add_field}}</button>
+				<div class="dropdown-menu dropdown-menu-right">
+					<a class="dropdown-item add-vcard-org add-field" style="display: none" href="#" data-add="vcard-org" data-id="new">{{$org_label}}</a>
+					<a class="dropdown-item add-vcard-title add-field" style="display: none" href="#" data-add="vcard-title" data-id="new">{{$title_label}}</a>
+					<a class="dropdown-item add-vcard-tel add-field" href="#" data-add="vcard-tel" data-id="new">{{$tel_label}}</a>
+					<a class="dropdown-item add-vcard-email add-field" href="#" data-add="vcard-email" data-id="new">{{$email_label}}</a>
+					<a class="dropdown-item add-vcard-impp add-field" href="#" data-add="vcard-impp" data-id="new">{{$impp_label}}</a>
+					<a class="dropdown-item add-vcard-url add-field" href="#" data-add="vcard-url" data-id="new">{{$url_label}}</a>
+					<a class="dropdown-item add-vcard-adr add-field" href="#" data-add="vcard-adr" data-id="new">{{$adr_label}}</a>
+					<a class="dropdown-item add-vcard-note add-field" href="#" data-add="vcard-note" data-id="new">{{$note_label}}</a>
+				</div>
 			</div>
 
 			<div class="vcard-fn-create form-group">
@@ -261,7 +262,7 @@ $(document).ready(function() {
 			</div>
 
 			<button type="submit" name="create" value="create_card" class="btn btn-primary btn-sm pull-right">{{$create}}</button>
-			<button type="button" class="btn btn-default btn-sm" onclick="openClose('create_form')">{{$cancel}}</button>
+			<button type="button" class="btn btn-outline-secondary btn-sm" onclick="openClose('create_form')">{{$cancel}}</button>
 			<div class="clear"></div>
 		</form>
 	</div>
@@ -273,17 +274,17 @@ $(document).ready(function() {
 		<div class="section-content-wrapper-np">
 			<div id="vcard-cancel-{{$card.id}}" class="vcard-cancel vcard-cancel-btn" data-id="{{$card.id}}" data-action="cancel"><i class="fa fa-close"></i></div>
 			<div id="vcard-add-field-{{$card.id}}" class="dropdown pull-right vcard-add-field">
-				<button data-toggle="dropdown" type="button" class="btn btn-default btn-sm dropdown-toggle"><i class="fa fa-plus"></i> {{$add_field}}</button>
-				<ul class="dropdown-menu">
-					<li class="add-vcard-org"{{if $card.org}} style="display: none"{{/if}}><a href="#" data-add="vcard-org" data-id="{{$card.id}}" class="add-field" onclick="return false;">{{$org_label}}</a></li>
-					<li class="add-vcard-title"{{if $card.title}} style="display: none"{{/if}}><a href="#" data-add="vcard-title" data-id="{{$card.id}}" class="add-field" onclick="return false;">{{$title_label}}</a></li>
-					<li class="add-vcard-tel"><a href="#" data-add="vcard-tel" data-id="{{$card.id}}" class="add-field" onclick="return false;">{{$tel_label}}</a></li>
-					<li class="add-vcard-email"><a href="#" data-add="vcard-email" data-id="{{$card.id}}" class="add-field" onclick="return false;">{{$email_label}}</a></li>
-					<li class="add-vcard-impp"><a href="#" data-add="vcard-impp" data-id="{{$card.id}}" class="add-field" onclick="return false;">{{$impp_label}}</a></li>
-					<li class="add-vcard-url"><a href="#" data-add="vcard-url" data-id="{{$card.id}}" class="add-field" onclick="return false;">{{$url_label}}</a></li>
-					<li class="add-vcard-adr"><a href="#" data-add="vcard-adr" data-id="{{$card.id}}" class="add-field" onclick="return false;">{{$adr_label}}</a></li>
-					<li class="add-vcard-note"{{if $card.note}} style="display: none"{{/if}}><a href="#" data-add="vcard-note" data-id="{{$card.id}}" class="add-field" onclick="return false;">{{$note_label}}</a></li>
-				</ul>
+				<button data-toggle="dropdown" type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle"><i class="fa fa-plus"></i> {{$add_field}}</button>
+				<div class="dropdown-menu dropdown-menu-right">
+					<a class="dropdown-item add-vcard-org add-field"{{if $card.org}} style="display: none"{{/if}} href="#" data-add="vcard-org" data-id="{{$card.id}}">{{$org_label}}</a>
+					<a class="dropdown-item add-vcard-title add-field"{{if $card.title}} style="display: none"{{/if}} href="#" data-add="vcard-title" data-id="{{$card.id}}">{{$title_label}}</a>
+					<a class="dropdown-item add-vcard-tel add-field" href="#" data-add="vcard-tel" data-id="{{$card.id}}">{{$tel_label}}</a>
+					<a class="dropdown-item add-vcard-email add-field" href="#" data-add="vcard-email" data-id="{{$card.id}}">{{$email_label}}</a>
+					<a class="dropdown-item add-vcard-impp add-field" href="#" data-add="vcard-impp" data-id="{{$card.id}}">{{$impp_label}}</a>
+					<a class="dropdown-item add-vcard-url add-field" href="#" data-add="vcard-url" data-id="{{$card.id}}">{{$url_label}}</a>
+					<a class="dropdown-item add-vcard-adr add-field" href="#" data-add="vcard-adr" data-id="{{$card.id}}">{{$adr_label}}</a>
+					<a class="dropdown-item add-vcard-note add-field"{{if $card.note}} style="display: none"{{/if}} href="#" data-add="vcard-note" data-id="{{$card.id}}">{{$note_label}}</a>
+				</div>
 			</div>
 			<div id="vcard-header-{{$card.id}}" class="vcard-header" data-id="{{$card.id}}" data-action="open">
 				{{if $card.photo}}<img class="vcard-photo" src="{{$card.photo}}" width="32px" height="32px">{{else}}<div class="vcard-nophoto"><i class="fa fa-user"></i></div>{{/if}}
@@ -453,7 +454,7 @@ $(document).ready(function() {
 
 			<button type="submit" name="update" value="update_card" class="btn btn-primary btn-sm pull-right">{{$update}}</button>
 			<button type="submit" name="delete" value="delete_card" class="btn btn-danger btn-sm">{{$delete}}</button>
-			<button type="button" class="btn btn-default btn-sm vcard-cancel-btn" data-id="{{$card.id}}" data-action="cancel">{{$cancel}}</button>
+			<button type="button" class="btn btn-outline-secondary btn-sm vcard-cancel-btn" data-id="{{$card.id}}" data-action="cancel">{{$cancel}}</button>
 			<div class="clear"></div>
 		</div>
 	</form>

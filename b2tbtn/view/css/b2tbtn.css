@@ -3,7 +3,7 @@ Back to top button
 */
 #back-top {
 	position: fixed;
-	bottom: 30px;
+	bottom: 40px;
 	right: 5px;
 	opacity: 0.65;
 	z-index: 1;

@@ -20,8 +20,3 @@
 .fc-unthemed .fc-popover {
 	border-color: #ccc !important;
 }
-
-#events-spinner .spinner {
-	margin-top: 9px;
-	margin-bottom: -9px;
-}

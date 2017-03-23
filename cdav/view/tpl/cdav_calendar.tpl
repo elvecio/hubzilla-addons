@@ -9,6 +9,7 @@ $(document).ready(function() {
 		eventSources: [ {{$sources}} ],
 
 		header: false,
+		eventTextColor: 'white',
 
 		lang: '{{$lang}}',
 		firstDay: {{$first_day}},
@@ -142,7 +143,7 @@ $(document).ready(function() {
 
 	$('#title').text(view.title);
 
-	$('#view_selector').html('<i class="fa fa-caret-down"></i> ' + views[view.name]);
+	$('#view_selector').html(views[view.name]);
 
 	$('.color-edit').colorpicker({ input: '.color-edit-input' });
 
@@ -169,7 +170,7 @@ function changeView(action, viewName) {
 		on_inline();
 
 	$('#title').text(view.title);
-	$('#view_selector').html('<i class="fa fa-caret-down"></i> ' + views[view.name]);
+	$('#view_selector').html(views[view.name]);
 }
 
 function add_remove_json_source(source, color, editable, status) {
@@ -277,25 +278,25 @@ function on_more() {
 
 <div class="generic-content-wrapper">
 	<div class="section-title-wrapper">
-		<div class="pull-right">
+		<div class="float-right">
 			<div class="dropdown">
-				<button id="view_selector" type="button" class="btn btn-default btn-xs dropdown-toggle" data-toggle="dropdown"><i class="fa fa-caret-down"></i>&nbsp;</button>
-				<ul class="dropdown-menu">
-					<li><a href="#" onclick="changeView('changeView', 'month'); return false;">{{$month}}</a></li>
-					<li><a href="#" onclick="changeView('changeView', 'agendaWeek'); return false;">{{$week}}</a></li>
-					<li><a href="#" onclick="changeView('changeView', 'agendaDay'); return false;">{{$day}}</a></li>
-					<li class="divider"></li>
-					<li><a href="#" onclick="changeView('changeView', 'listMonth'); return false;">{{$list_month}}</a></li>
-					<li><a href="#" onclick="changeView('changeView', 'listWeek'); return false;">{{$list_week}}</a></li>
-					<li><a href="#" onclick="changeView('changeView', 'listDay'); return false;">{{$list_day}}</a></li>
-				</ul>
-				<div class="btn-group">
-					<button class="btn btn-default btn-xs" onclick="changeView('prev', false);" title="{{$prev}}"><i class="fa fa-backward"></i></button>
-					<button id="events-spinner" class="btn btn-default btn-xs" onclick="changeView('today', false);" title="{{$today}}"><i class="fa fa-bullseye"></i></button>
-					<button class="btn btn-default btn-xs" onclick="changeView('next', false);" title="{{$next}}"><i class="fa fa-forward"></i></button>
+				<button id="view_selector" type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-toggle="dropdown"></button>
+				<div class="dropdown-menu">
+					<a class="dropdown-item" href="#" onclick="changeView('changeView', 'month'); return false;">{{$month}}</a></li>
+					<a class="dropdown-item" href="#" onclick="changeView('changeView', 'agendaWeek'); return false;">{{$week}}</a></li>
+					<a class="dropdown-item" href="#" onclick="changeView('changeView', 'agendaDay'); return false;">{{$day}}</a></li>
+					<div class="dropdown-divider"></div>
+					<a class="dropdown-item" href="#" onclick="changeView('changeView', 'listMonth'); return false;">{{$list_month}}</a></li>
+					<a class="dropdown-item" href="#" onclick="changeView('changeView', 'listWeek'); return false;">{{$list_week}}</a></li>
+					<a class="dropdown-item" href="#" onclick="changeView('changeView', 'listDay'); return false;">{{$list_day}}</a></li>
 				</div>
-				<button id="fullscreen-btn" type="button" class="btn btn-default btn-xs" onclick="makeFullScreen();"><i class="fa fa-expand"></i></button>
-				<button id="inline-btn" type="button" class="btn btn-default btn-xs" onclick="makeFullScreen(false);"><i class="fa fa-compress"></i></button>
+				<div class="btn-group">
+					<button class="btn btn-outline-secondary btn-sm" onclick="changeView('prev', false);" title="{{$prev}}"><i class="fa fa-backward"></i></button>
+					<button id="events-spinner" class="btn btn-outline-secondary btn-sm" onclick="changeView('today', false);" title="{{$today}}"><i class="fa fa-bullseye"></i></button>
+					<button class="btn btn-outline-secondary btn-sm" onclick="changeView('next', false);" title="{{$next}}"><i class="fa fa-forward"></i></button>
+				</div>
+				<button id="fullscreen-btn" type="button" class="btn btn-outline-secondary btn-sm" onclick="makeFullScreen();"><i class="fa fa-expand"></i></button>
+				<button id="inline-btn" type="button" class="btn btn-outline-secondary btn-sm" onclick="makeFullScreen(false);"><i class="fa fa-compress"></i></button>
 			</div>
 		</div>
 		<h2 id="title"></h2>
@@ -308,7 +309,7 @@ function on_more() {
 			</div>
 			<div>
 				<button id="event_delete_recurrent" type="button" class="btn btn-danger btn-sm">{{$delete_all}}</button>
-				<button id="event_cancel_recurrent" type="button" class="btn btn-default btn-sm">{{$cancel}}</button>
+				<button id="event_cancel_recurrent" type="button" class="btn btn-outline-secondary btn-sm">{{$cancel}}</button>
 			</div>
 		</div>
 		<div id="event_form_wrapper" style="display: none">
@@ -329,13 +330,13 @@ function on_more() {
 				</div>
 				<div class="form-group">
 					<div class="pull-right">
-						<button id="event_more" type="button" class="btn btn-default btn-sm"><i class="fa fa-caret-down"></i> {{$more}}</button>
+						<button id="event_more" type="button" class="btn btn-outline-secondary btn-sm"><i class="fa fa-caret-down"></i> {{$more}}</button>
 						<button id="event_submit" type="button" value="" class="btn btn-primary btn-sm"></button>
 
 					</div>
 					<div>
 						<button id="event_delete" type="button" class="btn btn-danger btn-sm">{{$delete}}</button>
-						<button id="event_cancel" type="button" class="btn btn-default btn-sm">{{$cancel}}</button>
+						<button id="event_cancel" type="button" class="btn btn-outline-secondary btn-sm">{{$cancel}}</button>
 					</div>
 					<div class="clear"></div>
 				</div>

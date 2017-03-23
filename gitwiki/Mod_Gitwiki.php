@@ -2,6 +2,8 @@
 
 namespace Zotlabs\Module;
 
+use \Michelf\MarkdownExtra;
+
 require_once('addon/gitwiki/gitwiki_backend.php');
 
 class Gitwiki extends \Zotlabs\Web\Controller {
@@ -223,8 +225,7 @@ class Gitwiki extends \Zotlabs\Web\Controller {
 					$renderedContent = wiki_convert_links(zidify_links(smilies(bbcode($content))),argv(0).'/'.argv(1).'/'.$wikiUrlName);
 				}
 				else {
-					require_once('library/markdown.php');
-					$html = wiki_generate_toc(zidify_text(purify_html(Markdown(wiki_bbcode(json_decode($content))))));
+					$html = wiki_generate_toc(zidify_text(purify_html(MarkdownExtra::defaultTransform(wiki_bbcode(json_decode($content))))));
 					$renderedContent = wiki_convert_links($html,argv(0).'/'.argv(1).'/'.$wikiUrlName);
 				}
 				$showPageControls = $wiki_editor;
@@ -307,9 +308,8 @@ class Gitwiki extends \Zotlabs\Web\Controller {
 				$html = wiki_convert_links(zidify_links(smilies(bbcode($content))),$wikiURL);
 			}
 			else {
-				require_once('library/markdown.php');
 				$content = wiki_bbcode($content);
-				$html = wiki_generate_toc(zidify_text(purify_html(Markdown($content))));
+				$html = wiki_generate_toc(zidify_text(purify_html(MarkdownExtra::defaultTransform($content))));
 				$html = wiki_convert_links($html,$wikiURL);
 			}
 			json_return_and_die(array('html' => $html, 'success' => true));
