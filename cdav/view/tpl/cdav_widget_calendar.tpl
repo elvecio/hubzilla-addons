@@ -111,7 +111,7 @@
 						</select>
 					</div>
 					<div class="form-group">
-						<input class="form-control-file w100" id="event-upload-choose" type="file" name="userfile" />
+						<input class="form-control-file w-100" id="event-upload-choose" type="file" name="userfile" />
 					</div>
 					<button class="btn btn-primary btn-sm" type="submit" name="c_upload" value="c_upload">{{$upload}}</button>
 				</form>
