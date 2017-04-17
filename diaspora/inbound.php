@@ -339,8 +339,6 @@ function diaspora_decode($importer,$xml,$format) {
 
 function diaspora_request($importer,$xml) {
 
-	$a = get_app();
-
 	$sender_handle = unxmlify(diaspora_get_author($xml));
 	$recipient_handle = unxmlify(diaspora_get_recipient($xml));
 
@@ -573,7 +571,7 @@ function diaspora_post($importer,$xml,$msg) {
 	$datarray = array();
 
 	// Look for tags and linkify them
-	$results = linkify_tags(get_app(), $body, $importer['channel_id'], true);
+	$results = linkify_tags('', $body, $importer['channel_id'], true);
 
 	$datarray['term'] = array();
 
@@ -736,7 +734,6 @@ function diaspora_reshare($importer,$xml,$msg) {
 
 	logger('diaspora_reshare: init: ' . print_r($xml,true), LOGGER_DATA);
 
-	$a = get_app();
 	$guid = notags(unxmlify($xml['guid']));
 	$diaspora_handle = notags(diaspora_get_author($xml));
 
@@ -822,7 +819,7 @@ function diaspora_reshare($importer,$xml,$msg) {
 	$datarray = array();
 
 	// Look for tags and linkify them
-	$results = linkify_tags(get_app(), $body, $importer['channel_id'], true);
+	$results = linkify_tags('', $body, $importer['channel_id'], true);
 
 	$datarray['term'] = array();
 
@@ -921,7 +918,6 @@ function diaspora_reshare($importer,$xml,$msg) {
 
 function diaspora_comment($importer,$xml,$msg) {
 
-	$a = get_app();
 	$guid = notags(unxmlify($xml['guid']));
 	$parent_guid = notags(unxmlify($xml['parent_guid']));
 	$diaspora_handle = notags(diaspora_get_author($xml));
@@ -1087,7 +1083,7 @@ function diaspora_comment($importer,$xml,$msg) {
 	$datarray = array();
 
 	// Look for tags and linkify them
-	$results = linkify_tags(get_app(), $body, $importer['channel_id'], true);
+	$results = linkify_tags('', $body, $importer['channel_id'], true);
 
 	$datarray['term'] = array();
 
@@ -1224,8 +1220,6 @@ function diaspora_comment($importer,$xml,$msg) {
 
 
 function diaspora_conversation($importer,$xml,$msg) {
-
-	$a = get_app();
 
 	$guid = notags(unxmlify($xml['guid']));
 	$subject = notags(unxmlify($xml['subject']));
@@ -1413,8 +1407,6 @@ function diaspora_conversation($importer,$xml,$msg) {
 
 function diaspora_message($importer,$xml,$msg) {
 
-	$a = get_app();
-
 	$msg_guid = notags(unxmlify($xml['guid']));
 	$msg_parent_guid = notags(unxmlify($xml['parent_guid']));
 	$msg_parent_author_signature = notags(unxmlify($xml['parent_author_signature']));
@@ -1553,8 +1545,6 @@ function diaspora_message($importer,$xml,$msg) {
 
 function diaspora_photo($importer,$xml,$msg) {
 
-	$a = get_app();
-
 	logger('diaspora_photo: init',LOGGER_DEBUG);
 
 	$remote_photo_path = notags(unxmlify($xml['remote_photo_path']));
@@ -1616,7 +1606,6 @@ function diaspora_photo($importer,$xml,$msg) {
 
 function diaspora_like($importer,$xml,$msg) {
 
-	$a = get_app();
 	$guid = notags(unxmlify($xml['guid']));
 	$parent_guid = notags(unxmlify($xml['parent_guid']));
 	$diaspora_handle = notags(diaspora_get_author($xml));
@@ -1999,7 +1988,6 @@ function diaspora_signed_retraction($importer,$xml,$msg) {
 
 function diaspora_profile($importer,$xml,$msg) {
 
-	$a = get_app();
 	$diaspora_handle = notags(diaspora_get_author($xml));
 
 	logger('xml: ' . print_r($xml,true), LOGGER_DEBUG);

@@ -5,9 +5,6 @@ require_once('include/attach.php');
 
 cli_startup();
 
-$a = get_app();
-
-
 $attach_id = $argv[1];
 $channel_address = $argv[2];
 $fr_server = urldecode($argv[3]);

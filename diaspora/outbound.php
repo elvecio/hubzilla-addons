@@ -2,8 +2,6 @@
 
 function diaspora_pubmsg_build($msg,$channel,$contact,$prvkey,$pubkey) {
 
-	$a = get_app();
-
 	logger('diaspora_pubmsg_build: ' . $msg, LOGGER_DATA, LOG_DEBUG);
 
     $handle = channel_reddress($channel);
@@ -46,7 +44,6 @@ EOT;
 
 
 function diaspora_msg_build($msg,$channel,$contact,$prvkey,$pubkey,$public = false) {
-	$a = get_app();
 
 	if($public)
 		return diaspora_pubmsg_build($msg,$channel,$contact,$prvkey,$pubkey);
@@ -181,7 +178,6 @@ function diaspora_share($owner,$contact) {
 
 function diaspora_unshare($owner,$contact) {
 
-	$a = get_app();
 	$myaddr = channel_reddress($owner);
 
 	$tpl = get_markup_template('diaspora_retract.tpl','addon/diaspora');
@@ -264,7 +260,7 @@ function diaspora_is_reshare($body) {
 }
 
 function diaspora_send_images($item,$owner,$contact,$images,$public_batch = false) {
-	$a = get_app();
+
 	if(! count($images))
 		return;
 	$mysite = substr(z_root(),strpos(z_root(),'://') + 3) . '/photo';
@@ -309,7 +305,6 @@ function diaspora_send_upstream($item,$owner,$contact,$public_batch = false,$upl
 
 	logger('diaspora_send_upstream');
 
-	$a = get_app();
 	$myaddr = channel_reddress($owner);
 	$theiraddr = $contact['xchan_addr'];
 
@@ -409,8 +404,6 @@ function diaspora_send_upstream($item,$owner,$contact,$public_batch = false,$upl
 
 function diaspora_send_downstream($item,$owner,$contact,$public_batch = false) {
 
-
-	$a = get_app();
 	$myaddr = channel_reddress($owner);
 
 	$text = bb2diaspora_itembody($item);
@@ -566,7 +559,6 @@ function diaspora_send_downstream($item,$owner,$contact,$public_batch = false) {
 
 function diaspora_send_retraction($item,$owner,$contact,$public_batch = false) {
 
-	$a = get_app();
 	$myaddr = channel_reddress($owner);
 
 	// Check whether the retraction is for a top-level post or whether it's a relayable
@@ -597,7 +589,6 @@ function diaspora_send_retraction($item,$owner,$contact,$public_batch = false) {
 
 function diaspora_send_mail($item,$owner,$contact) {
 
-	$a = get_app();
 	$myaddr = channel_reddress($owner);
 
 	$r = q("select * from conv where guid = '%s' and uid = %d limit 1",
