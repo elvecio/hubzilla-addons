@@ -33,7 +33,7 @@ function gnusoc_load() {
 	register_hook('follow_from_feed','addon/gnusoc/gnusoc.php','gnusoc_follow_from_feed');
 	register_hook('atom_entry','addon/gnusoc/gnusoc.php','gnusoc_atom_entry');
 	register_hook('parse_atom','addon/gnusoc/gnusoc.php','gnusoc_parse_atom');
-
+	register_hook('atom_feed','addon/gnusoc/gnusoc.php','gnusoc_atom_feed');
 
 
 //	register_hook('notifier_hub', 'addon/gnusoc/gnusoc.php', 'gnusoc_process_outbound');
@@ -55,6 +55,7 @@ function gnusoc_unload() {
 	unregister_hook('follow_from_feed','addon/gnusoc/gnusoc.php','gnusoc_follow_from_feed');
 	unregister_hook('atom_entry','addon/gnusoc/gnusoc.php','gnusoc_atom_entry');
 	unregister_hook('parse_atom','addon/gnusoc/gnusoc.php','gnusoc_parse_atom');
+	unregister_hook('atom_feed','addon/gnusoc/gnusoc.php','gnusoc_atom_feed');
 
 }
 
@@ -606,6 +607,24 @@ function gnusoc_atom_entry($a,&$b) {
 
 	$b['entry'] = str_replace('</entry>', $o . '</entry>', $b['entry']);
 
+}
+
+function gnusoc_atom_feed($a,&$b) {
+    $x = preg_match('|' . 'href\=(.*?)' . z_root() . '/channel/(.*?) |',$b,$matches);
+
+	$y = preg_match('|' . z_root() . '/photo/profile/l/(.*?)"|',$b,$matches2);
+
+    if($x) {
+        $b = str_replace('</generator>','</generator>' . "\r\n  " .
+        '<link rel="salmon" href="' . z_root() . '/salmon/' . $matches[2] . ' />' . "\r\n  " .
+        '<link rel="http://salmon-protocol.org/ns/salmon-replies" href="' . z_root() . '/salmon/' . $matches[2] . ' />' . 
+		"\r\n  " .
+        '<link rel="http://salmon-protocol.org/ns/salmon-mention" href="' . z_root() . '/salmon/' . $matches[2] . ' />',$b);
+    }
+	if($y) {
+		$b = str_replace('</generator>','</generator>' . "\r\n  " .
+		'<logo>' . z_root() . '/photo/profile/l/' . $matches2[1] . '</logo>',$b);
+	}
 }
 
 function gnusoc_parse_atom($a,&$b) {
