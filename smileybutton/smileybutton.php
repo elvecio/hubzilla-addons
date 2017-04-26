@@ -123,7 +123,7 @@ function show_button($a, &$b) {
 	 */
 
 	$params = array('texts' => $texts, 'icons' => $icons, 'string' => ""); //changed
-	call_hooks('smilie', $params);
+	//call_hooks('smilie', $params);
 
 	/**
 	 *

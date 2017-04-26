@@ -390,8 +390,6 @@ function diaspora_queue($owner,$contact,$slap,$public_batch,$message_id = '') {
 	if(intval(get_config('system','diaspora_test')) || intval(get_pconfig($owner['channel_id'],'system','diaspora_test')))
 		return false;
 
-	$a = get_app();
-
 	$hash = random_string();
 
 	logger('diaspora_queue: ' . $hash . ' ' . $dest_url, LOGGER_DEBUG);
