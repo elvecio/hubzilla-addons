@@ -42,10 +42,11 @@ function pubsub_init(&$a) {
 			}
 		} 
 
-		$feed_url = z_root() . '/feed/' . $channel['channel_address'];
+		$feed_url  = z_root() . '/feed/'  . $channel['channel_address'];
+		$ofeed_url = z_root() . '/ofeed/' . $channel['channel_address'];
 
 		if($hub_topic) {
-			if(! link_compare($hub_topic,$feed_url)) {
+			if((! link_compare($hub_topic,$feed_url)) && (! link_compare($hub_topic,$ofeed_url))) {
 				logger('hub topic ' . $hub_topic . ' != ' . $feed_url);
 				// should abort but let's humour them.
 			}

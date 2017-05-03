@@ -89,8 +89,9 @@ function push_notifier_process(&$a,&$b) {
 	// allow subscriptions either by http or https, as gnu-social has been known to subscribe
 	// to the wrong one.
 
-	$r = q("select * from push_subscriber where topic like '%s'",
-		dbesc('%://' . App::get_hostname() . '/feed/' . $channel['channel_address'])
+	$r = q("select * from push_subscriber where topic like '%s' or topic like '%s' ",
+		dbesc('%://' . App::get_hostname() . '/feed/' . $channel['channel_address']),
+		dbesc('%://' . App::get_hostname() . '/ofeed/' . $channel['channel_address'])
 	);
 
 	if(! $r) {
@@ -100,7 +101,9 @@ function push_notifier_process(&$a,&$b) {
 
 	foreach($r as $rr) {
 
-		$feed = get_feed_for($channel,'',array('begin' => $rr['last_update']));
+		$compat = ((strpos('/ofeed/',$rr['topic'])) ? 1 : 0);
+
+		$feed = get_feed_for($channel,'',array('begin' => $rr['last_update'], 'compat' => $compat));
 
 		$hmac_sig = hash_hmac("sha1", $feed, $rr['secret']);
 
@@ -255,7 +258,7 @@ function pubsubhubbub_init(&$a) {
 		}
 
 		// sanity check that topic URLs are the same
-		if(! link_compare($hub_topic, z_root() . '/feed/' . $nick)) {
+		if((! link_compare($hub_topic, z_root() . '/feed/' . $nick)) && (! link_compare($hub_topic, z_root() . '/ofeed/' . $nick))) {
 			logger('pubsubhubbub: not a valid hub topic ' . $hub_topic );
 			http_status_exit(404);
 		}
@@ -343,7 +346,7 @@ function pubsubhubbub_subscribe($url,$channel,$xchan,$feed,$hubmode = 'subscribe
 
 	$params= 'hub.mode=' . $hubmode . '&hub.callback=' . urlencode($push_url) . '&hub.topic=' . urlencode($feed) . '&hub.verify=async&hub.verify_token=' . $verify;
 
-	logger('subscribe_to_hub: ' . $hubmode . ' ' . $xchan['xchan_name'] . ' to hub ' . $url . ' endpoint: '  . $push_url . ' with verifier ' . $verify);
+	logger('subscribe_to_hub: ' . $hubmode . ' ' . $channel['channel_name'] . ' to hub ' . $url . ' endpoint: '  . $push_url . ' with verifier ' . $verify);
 
 
 	$x = z_post_url($url,$params);
