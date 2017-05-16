@@ -314,8 +314,9 @@ function gnusoc_queue_deliver(&$a,&$b) {
 
 function gnusoc_remote_follow($channel,$xchan) {
 
-
 	$slap = replace_macros(get_markup_template('follow_slap.tpl','addon/gnusoc/'),array(
+		'$author' => atom_render_author('author',$channel),
+		'$object' => atom_render_author('as:object',$xchan),
 		'$name' => xmlify($channel['channel_name']),
 		'$nick' => xmlify($channel['channel_address']),
 		'$profile_page' => xmlify(z_root() . '/channel/' . $channel['channel_address']),
