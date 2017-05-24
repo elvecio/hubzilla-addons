@@ -61,69 +61,7 @@ function show_button($a, &$b) {
 	 *
 	 */
 
-	/**
-	 *
- 	 * I have copied this from /include/text.php, removed dobles
-	 * and some escapes.
-	 *
-	 */
-
-	$texts =  array( 
-		'&lt;3', 
-		'&lt;/3', 
-		':-)', 
-		';-)', 
-		':-(', 
-		':-P', 
-		':-X', 
-		':-D', 
-		':-O', 
-		'\\\\o/', 
-		'O_o', 
-		":\'(", 
-		":-!", 
-		":-/", 
-		":-[", 
-		"8-)",
-		':beer', 
-		':coffee', 
-		':facepalm',
-		':like',
-		':dislike'
-	);
-
-	$icons = array(
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-heart.gif" alt="<3" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-brokenheart.gif" alt="</3" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-smile.gif" alt=":-)" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-wink.gif" alt=";-)" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-frown.gif" alt=":-(" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-tongue-out.gif" alt=":-P" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-kiss.gif" alt=":-X" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-laughing.gif" alt=":-D" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-surprised.gif" alt=":-O" />',                
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-thumbsup.gif" alt="\\o/" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-Oo.gif" alt="O_o" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-cry.gif" alt=":\'(" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-foot-in-mouth.gif" alt=":-!" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-undecided.gif" alt=":-/" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-embarassed.gif" alt=":-[" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-cool.gif" alt="8-)" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/beer_mug.gif" alt=":beer" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/coffee.gif" alt=":coffee" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/smiley-facepalm.gif" alt=":facepalm" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/like.gif" alt=":like" />',
-		'<img class="smiley" src="' . z_root() . '/images/emoticons/dislike.gif" alt=":dislike" />'
-	);
-	
-	/**
-	 * 
-	 * Call hooks to get aditional smileies from other addons
-	 *
-	 */
-
-	$params = array('texts' => $texts, 'icons' => $icons, 'string' => ""); //changed
-	//call_hooks('smilie', $params);
+	$s = list_smilies(true);
 
 	/**
 	 *
@@ -131,17 +69,17 @@ function show_button($a, &$b) {
 	 *
 	 */
 
-	$s = "\t<table class=\"smiley-preview\"><tr>\n";
-	for($x = 0; $x < count($params['texts']); $x ++) {
-		$icon = $params['icons'][$x];
-		$icon = str_replace('/>', 'onclick="smileybutton_addsmiley(\'' . $params['texts'][$x] . '\')"/>', $icon);
+	$html = "\t<table class=\"smiley-preview\"><tr>\n";
+	for($x = 0; $x < count($s['texts']); $x ++) {
+		$icon = $s['icons'][$x];
+		$icon = str_replace('/>', 'onclick="smileybutton_addsmiley(\'' . $s['texts'][$x] . '\')"/>', $icon);
 		$icon = str_replace('class="smiley"', 'class="smiley_preview"', $icon);
-		$s .= "<td>" . $icon . "</td>";
-		if (($x+1) % (sqrt(count($params['texts']))+1) == 0) {
-			$s .= "</tr>\n\t<tr>";
+		$html .= "<td>" . $icon . "</td>";
+		if (($x+1) % (sqrt(count($s['texts']))+1) == 0) {
+			$html .= "</tr>\n\t<tr>";
 		}
 	}
-	$s .= "\t</tr></table>\n";
+	$html .= "\t</tr></table>\n";
 
 	/**
 	 *
@@ -180,7 +118,7 @@ function show_button($a, &$b) {
 			$b .= "\t<div id=\"smileybutton\" style=\"display:none;\">\n";
 		}
 	}
-	$b .= $s . "\n"; 
+	$b .= $html . "\n"; 
 	$b .= "</div>\n";
 
 	/**
@@ -282,3 +220,4 @@ function smileybutton_settings(&$a,&$s) {
 		'$content'	=> $sc
 	));
 }
+
