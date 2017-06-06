@@ -190,12 +190,12 @@ function diaspora_decode($importer,$xml,$format) {
 		}
 	}
 
-	$basedom = parse_xml_string($xml);
+	$basedom = parse_xml_string($xml,false);
 
 	if($format !== 'legacy') {
 		$children = $basedom->children('http://salmon-protocol.org/ns/magic-env');
 		$public = true;
-		$author_link = str_replace('acct:','',base64url_decode($children->key_id));
+		$author_link = str_replace('acct:','',base64url_decode($children->sig[0]->attributes()->key_id[0]));
 
 		/**
 			SimpleXMLElement Object
@@ -287,7 +287,6 @@ function diaspora_decode($importer,$xml,$format) {
 	// stash away some other stuff for later
 
 	$type     = $base->data[0]->attributes()->type[0];
-	$keyhash  = $base->sig[0]->attributes()->keyhash[0];
 	$encoding = $base->encoding;
 	$alg      = $base->alg;
 
