@@ -2,9 +2,10 @@
 
 /**
  * Name: PubSubHubBub
- * Description: Add PuSH capability to channel feeds - based loosely on Friendica PuSH module by Mats Sjöberg
+ * Description: Required for GNU-Social protocol. Add PuSH capability to channel feeds
  * Version: 1.0
  * Author: Mike Macgirvin
+ * Author: Mats Sjöberg
  * Maintainer: none
  * MinVersion: 1.2.2
  */
@@ -13,12 +14,12 @@
 function pubsubhubbub_install() {
 	$r = q("CREATE TABLE IF NOT EXISTS `push_subscriber` (
 	  `id` int(11) NOT NULL AUTO_INCREMENT,
-	  `callback_url` varchar(255) NOT NULL DEFAULT '',
-	  `topic` varchar(255) NOT NULL DEFAULT '',
+	  `callback_url` varchar(191) NOT NULL DEFAULT '',
+	  `topic` varchar(191) NOT NULL DEFAULT '',
 	  `last_update` datetime NOT NULL DEFAULT '0001-01-01 00:00:00',
-	  `secret` varchar(255) NOT NULL DEFAULT '',
+	  `secret` varchar(191) NOT NULL DEFAULT '',
 	  PRIMARY KEY (`id`)
-		) ENGINE=MyISAM DEFAULT CHARSET=utf8");
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 	if($r) {
 		q("alter table push_subscriber add index ( callback_url ) ");
 		q("alter table push_subscriber add index ( topic ) ");

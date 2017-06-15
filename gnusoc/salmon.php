@@ -84,6 +84,8 @@ function salmon_post(&$a) {
 
 	$type = $base->data[0]->attributes()->type[0];
 	$keyhash = $base->sig[0]->attributes()->keyhash[0];
+	if(! $keyhash)
+		$keyhash = $base->sig[0]->attributes()->key_id[0];
 	$encoding = $base->encoding;
 	$alg = $base->alg;
 

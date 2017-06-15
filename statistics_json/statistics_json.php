@@ -3,10 +3,10 @@
 /**
  * Name: Diaspora Statistics
  * Description: Generates some statistics for the-federation.info (formerly http://pods.jasonrobinson.me/)
- * Version: 0.1
+ * Version: 2.0
+ * Author: Mike Macgirvin
  * Author: Michael Vogel <https://pirati.ca/profile/heluecht>
  * Maintainer: none
- * ServerRoles: basic, standard
  */
 
 function statistics_json_load() {
@@ -25,10 +25,17 @@ function statistics_json_unload() {
 
 function statistics_json_well_known() {
 	if(argc() > 1 && argv(1) === 'nodeinfo') {
-		$arr = array( 'links' => array(
-			'rel' => 'http://nodeinfo.diaspora.software/ns/schema/1.0',
-			'href' => z_root() . '/nodeinfo/1.0'
-		));
+		$arr = [
+			'links' => [
+				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/1.0',
+				'href' => z_root() . '/nodeinfo/1.0'
+			],
+			[
+				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+				'href' => z_root() . '/nodeinfo/2.0'
+			],
+
+		];
 
 		header('Content-type: application/json');
 		echo json_encode($arr);
@@ -170,3 +177,4 @@ function statistics_json_cron($a,$b) {
 	logger('statistics_json_cron: cron_end');
 
 }
+
