@@ -1,5 +1,77 @@
 <?php
 
+
+function diaspora_prepare_outbound($msg,$owner,$contact,$owner_prvkey,$contact_pubkey,$public = false) {
+
+	if(defined('DIASPORA_V2')) {
+		$post = diaspora_v2_build($msg,$owner,$contact,$owner_prvkey,$contact_pubkey,$public);
+		logger('diaspora_v2:' . print_r($post,true));
+		return $post;
+	}
+	else {
+		return 'xml=' . urlencode(urlencode(diaspora_msg_build($msg,$owner,$contact,$owner_prvkey,$contact_pubkey,$public)));
+	}
+}
+
+
+function diaspora_v2_build($msg,$channel,$contact,$prvkey,$pubkey,$public = false) {
+
+	logger('diaspora_v2_build: ' . $msg, LOGGER_DATA, LOG_DEBUG);
+
+    $handle      = channel_reddress($channel);
+	$enchandle   = base64url_encode($handle,false);
+	$b64url_data = base64url_encode($msg,false);
+
+	$data = str_replace(array("\n","\r"," ","\t"),array('','','',''),$b64url_data);
+
+	$type = 'application/xml';
+	$encoding = 'base64url';
+	$alg = 'RSA-SHA256';
+
+	$signable_data = $data  . '.' . base64url_encode($type,false) . '.'
+		. base64url_encode($encoding,false) . '.' . base64url_encode($alg,false) ;
+
+	$signature = rsa_sign($signable_data,$prvkey);
+	$sig = base64url_encode($signature,false);
+
+$magic_env = <<< EOT
+<?xml version='1.0' encoding='UTF-8'?>
+<me:env xmlns:me="http://salmon-protocol.org/ns/magic-env">
+	<me:encoding>base64url</me:encoding>
+	<me:alg>RSA-SHA256</me:alg>
+	<me:data type="application/xml">$data</me:data>
+	<me:sig key_id="$enchandle">$sig</me:sig>
+</me:env>
+EOT;
+
+	logger('diaspora_v2_build: magic_env: ' . $magic_env, LOGGER_DATA, LOG_DEBUG);
+
+	if($public)
+		return $magic_env;
+
+	// if not public, generate the json encryption packet
+
+	$key = openssl_random_pseudo_bytes(32);
+	$iv  = openssl_random_pseudo_bytes(16);
+	$data = AES256CBC_encrypt($magic_env,$key,$iv);
+
+	$aes_key1 = '';
+
+	$aes_key = json_encode([
+		'key' => base64_encode($key),
+		'iv'  => base64_encode($iv),
+	]);
+
+	openssl_public_encrypt($aes_key,$aes_key1,$pubkey);
+
+	$j = [
+		'aes_key' => base64_encode($aes_key1),
+		'encrypted_magic_envelope' => base64_encode($data)
+	];
+	return json_encode($j);
+
+}
+
 function diaspora_pubmsg_build($msg,$channel,$contact,$prvkey,$pubkey) {
 
 	logger('diaspora_pubmsg_build: ' . $msg, LOGGER_DATA, LOG_DEBUG);
@@ -72,11 +144,7 @@ function diaspora_msg_build($msg,$channel,$contact,$prvkey,$pubkey,$public = fal
 
 	$inner_encrypted = AES256CBC_encrypt($msg,$inner_aes_key,$inner_iv);
 
-//	$padded_data = pkcs5_pad($msg,16);
-//	$inner_encrypted = mcrypt_encrypt(MCRYPT_RIJNDAEL_128, $inner_aes_key, $padded_data, MCRYPT_MODE_CBC, $inner_iv);
-
 	$b64_data = base64_encode($inner_encrypted);
-
 
 	$b64url_data = base64url_encode($b64_data,false);
 	$data = str_replace(array("\n","\r"," ","\t"),array('','','',''),$b64url_data);
@@ -102,9 +170,6 @@ $decrypted_header = <<< EOT
 EOT;
 
 	$ciphertext = AES256CBC_encrypt($decrypted_header,$outer_aes_key,$outer_iv);
-
-//	$decrypted_header = pkcs5_pad($decrypted_header,16);
-//	$ciphertext = mcrypt_encrypt(MCRYPT_RIJNDAEL_128, $outer_aes_key, $decrypted_header, MCRYPT_MODE_CBC, $outer_iv);
 
 	$outer_json = json_encode(array('iv' => $b_outer_iv,'key' => $b_outer_aes_key));
 
@@ -166,45 +231,75 @@ function diaspora_share($owner,$contact) {
 
 	$theiraddr = $contact['xchan_addr'];
 
-	$tpl = get_markup_template('diaspora_share.tpl','addon/diaspora');
-	$msg = replace_macros($tpl, array(
-		'$sender' => $myaddr,
-		'$recipient' => $theiraddr
-	));
+	if(defined('DIASPORA_V2')) {
+		$msg = arrtoxml('contact',
+			[
+				'author'    => $myaddr,
+				'recipient' => $theiraddr,
+				'following' => 'true',
+				'sharing'   => 'true'
+			]
+		);
 
-	$slap = 'xml=' . urlencode(urlencode(diaspora_msg_build($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'])));
+	}
+	else {
+		$tpl = get_markup_template('diaspora_share.tpl','addon/diaspora');
+		$msg = replace_macros($tpl, array(
+			'$sender' => $myaddr,
+			'$recipient' => $theiraddr
+		));
+	}
+
+	$slap = diaspora_prepare_outbound($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey']);
+
 	return(diaspora_queue($owner,$contact,$slap, false));
+	return;
+
 }
 
 function diaspora_unshare($owner,$contact) {
 
-	$myaddr = channel_reddress($owner);
+	$myaddr    = channel_reddress($owner);
+	$theiraddr = $contact['xchan_addr'];
 
-	$tpl = get_markup_template('diaspora_retract.tpl','addon/diaspora');
-	$msg = replace_macros($tpl, array(
-		'$guid'   => $owner['channel_guid'] . str_replace('.','',App::get_hostname()),
-		'$type'   => 'Person',
-		'$handle' => $myaddr
-	));
+	if(defined('DIASPORA_V2')) {
+		$msg = arrtoxml('contact',
+			[
+				'author'    => $myaddr,
+				'recipient' => $theiraddr,
+				'following' => 'false',
+				'sharing'   => 'false'
+			]
+		);
+	}
+	else {
+		$tpl = get_markup_template('diaspora_retract.tpl','addon/diaspora');
+		$msg = replace_macros($tpl, array(
+			'$guid'   => $owner['channel_guid'] . str_replace('.','',App::get_hostname()),
+			'$type'   => 'Person',
+			'$handle' => $myaddr
+		));
+	}
 
-	$slap = 'xml=' . urlencode(urlencode(diaspora_msg_build($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'])));
-
+	$slap = diaspora_prepare_outbound($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey']);
 	return(diaspora_queue($owner,$contact,$slap, false));
 }
 
 
+function diaspora_send_migration($item,$owner,$contact,$public_batch = false) {
+	// @TODO: send account_migration message
+	// called on keychange with $item set to the keychange packet.
+	// @TODO call on account move operation (as opposed to a clone operation)
 
 
-
-
+}
 
 function diaspora_send_status($item,$owner,$contact,$public_batch = false) {
 
 	$msg = diaspora_build_status($item,$owner);
 
 	logger('diaspora_send_status: '.$owner['channel_name'].' -> '.$contact['xchan_name'].' base message: ' . $msg, LOGGER_DATA);
-
-	$slap = 'xml=' . urlencode(urlencode(diaspora_msg_build($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch)));
+	$slap = diaspora_prepare_outbound($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'], $public_batch);
 
 	$qi = array(diaspora_queue($owner,$contact,$slap,$public_batch,$item['mid']));
 	return $qi;
@@ -308,21 +403,32 @@ function diaspora_send_upstream($item,$owner,$contact,$public_batch = false,$upl
 	$myaddr = channel_reddress($owner);
 	$theiraddr = $contact['xchan_addr'];
 
-	// Diaspora doesn't support threaded comments, but some
-	// versions of Diaspora (i.e. Diaspora-pistos) support
-	// likes on comments
-	if(($item['verb'] === ACTIVITY_LIKE || $item['verb'] === ACTIVITY_DISLIKE) && $item['thr_parent']) {
+	$conv_like = false;
+	$sub_like  = false;
+
+	if($uplink) {
+		logger('uplink not supported');
+		return;
+	}
+
+	if((($item['verb'] === ACTIVITY_LIKE) || ($item['verb'] === ACTIVITY_DISLIKE)) 
+		&& ($item['obj_type'] === ACTIVITY_OBJ_NOTE || $item['obj_type'] === ACTIVITY_OBJ_COMMENT)) {
+		$conv_like = true;
+		if(($item['thr_parent']) && ($item['thr_parent'] != $item['parent_mid']))
+			$sub_like = true;
+	}
+
+	if($sub_like) {		
+
+		return; // @FIXME not yet supported in Diaspora
+
 		$p = q("select mid, parent_mid from item where mid = '%s' and uid = %d limit 1",
 			dbesc($item['thr_parent']),
 			intval($item['uid'])
 		);
 	}
 	else {
-		// The first item in the item table with the parent id is the parent. However, MySQL doesn't always
-		// return the items ordered by item.id, in which case the wrong item is chosen as the parent.
-		// The only item with parent and id as the parent id is the parent item.
-		$p = q("select * from item where parent = %d and id = %d limit 1",
-			intval($item['parent']),
+		$p = q("select * from item where id = %d and id = parent limit 1",
 			intval($item['parent'])
 		);
 	}
@@ -331,259 +437,168 @@ function diaspora_send_upstream($item,$owner,$contact,$public_batch = false,$upl
 	else
 		return;
 
-	// if uplinking to Diaspora, ignore any existing signatures and create a wall-to-wall.
+	diaspora_deliver_local_comments($item,$parent);
 
-	$xmlout = (($uplink) ? '' : diaspora_fields_to_xml(get_iconfig($item,'diaspora','fields')));
+	$signed_fields = get_iconfig($item,'diaspora','fields');
 
-	if(($item['verb'] === ACTIVITY_LIKE) && ($parent['mid'] === $parent['parent_mid'])) {
-		$tpl = get_markup_template('diaspora_like.tpl','addon/diaspora');
-		$like = true;
-		$target_type = 'Post';
-		$positive = 'true';
-
-		if(intval($item['item_deleted']))
-			logger('diaspora_send_upstream: received deleted "like". Those should go to diaspora_send_retraction');
+	if($signed_fields) {
+		$msg = arrtoxml((($conv_like) ? 'like' : 'comment' ), $signed_fields);
 	}
 	else {
-		$tpl = get_markup_template('diaspora_comment.tpl','addon/diaspora');
-		$like = false;
+		return;
 	}
 
-	
-	if($item['diaspora_meta'] && ! $like) {
-		$diaspora_meta = json_decode($item['diaspora_meta'],true);
-		if($diaspora_meta) {
-			if(array_key_exists('iv',$diaspora_meta)) {
-				$key = get_config('system','prvkey');
-				$meta = json_decode(crypto_unencapsulate($diaspora_meta,$key),true);
-			}
-			else
-				$meta = $diaspora_meta;
-		}
-		$signed_text = $meta['signed_text'];
-		$authorsig   = $meta['signature'];
-		$signer      = $meta['signer'];
-		$text        = $meta['body'];
-	}
-	else {
-		$text = bb2diaspora_itembody($item,$uplink,false,$uplink);
+	logger('diaspora_send_upstream: base message: ' . $msg, LOGGER_DATA);
 
-		// sign it
-
-		if($like)
-			$signed_text = $positive . ';' . $item['mid'] . ';' . $target_type . ';' . $parent['mid'] . ';' . $myaddr;
-		else
-			$signed_text = $item['mid'] . ';' . $parent['mid'] . ';' . $text . ';' . $myaddr;
-
-		$authorsig = base64_encode(rsa_sign($signed_text,$owner['channel_prvkey'],'sha256'));
-
-	}
-
-	$msg = replace_macros($tpl,array(
-		'$xml' => $xmlout,
-		'$guid' => xmlify($item['mid']),
-		'$parent_guid' => xmlify($parent['mid']),
-		'$target_type' =>xmlify($target_type),
-		'$authorsig' => xmlify($authorsig),
-		'$body' => xmlify($text),
-		'$positive' => xmlify($positive),
-		'$handle' => xmlify($myaddr)
-	));
-
-	if($uplink)
-		logger('diaspora_send_upstream: uplink message: ' . $msg, LOGGER_DATA);
-	else
-		logger('diaspora_send_upstream: base message: ' . $msg, LOGGER_DATA);
-
-	$slap = 'xml=' . urlencode(urlencode(diaspora_msg_build($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch)));
-
-
+	$slap = diaspora_prepare_outbound($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch);
 	return(diaspora_queue($owner,$contact,$slap,$public_batch,$item['mid']));
 }
+
+// Diaspora will not send comments downstream to the system it originated from.
+// So we have to deliver comments/likes/etc. to everybody on this site that 
+// received the parent. ***IMPORTANT*** check the owner xchan of the parent
+// because others on this system may have received the comment through another
+// route or delivery chain.
+
+function diaspora_deliver_local_comments($item,$parent) {
+
+	$r = q("select aid, uid from item where mid = '%s' and owner_xchan = '%s'",
+		dbesc($parent['mid']),
+		dbesc($parent['owner_xchan'])
+	);
+
+	if(! $r)
+		return;
+
+	$new_item = $item;
+	unset($new_item['owner']);
+	unset($new_item['author']);
+
+	foreach($r as $rv) {
+		if($rv['uid'] === $item['uid'])
+			continue;	 
+		$new_item['uid'] = $rv['uid'];
+		$new_item['aid'] = $rv['aid'];
+		item_store($new_item);
+	}
+
+}
+
+
 
 
 function diaspora_send_downstream($item,$owner,$contact,$public_batch = false) {
 
+
 	$myaddr = channel_reddress($owner);
+	$theiraddr = $contact['xchan_addr'];
 
-	$text = bb2diaspora_itembody($item);
-
-	$parentauthorsig = '';
-
-	$body = $text;
-
-	// Diaspora doesn't support threaded comments, but some
-	// versions of Diaspora (i.e. Diaspora-pistos) support
-	// likes on comments
-
-	// That version is now dead so detect a "sublike" and
-	// just send it as an activity. 
-
-	$sublike = false;
-
-	if($item['verb'] === ACTIVITY_LIKE) {
-		if(($item['thr_parent']) && ($item['thr_parent'] !== $item['parent_mid'])) {
-			$sublike = true;
-		}
+	if($item['item_deleted']) {
+		return diaspora_send_retraction($item,$owner,$contact,$public_batch);
 	}
 
-	// The first item in the item table with the parent id is the parent. However, MySQL doesn't always
-	// return the items ordered by item.id, in which case the wrong item is chosen as the parent.
-	// The only item with parent and id as the parent id is the parent item.
+	$conv_like = false;
+	$sub_like  = false;
 
-	$p = q("select * from item where parent = %d and id = %d limit 1",
-		   intval($item['parent']),
-		   intval($item['parent'])
-	);
+	if((($item['verb'] === ACTIVITY_LIKE) || ($item['verb'] === ACTIVITY_DISLIKE)) 
+		&& ($item['obj_type'] === ACTIVITY_OBJ_NOTE || $item['obj_type'] === ACTIVITY_OBJ_COMMENT)) {
+		$conv_like = true;
+		if(($item['thr_parent']) && ($item['thr_parent'] != $item['parent_mid']))
+			$sub_like = true;
+	}
 
+	if($sub_like) {		
 
+		return; // @FIXME not yet supported in Diaspora
+
+		$p = q("select mid, parent_mid from item where mid = '%s' and uid = %d limit 1",
+			dbesc($item['thr_parent']),
+			intval($item['uid'])
+		);
+	}
+	else {
+		$p = q("select * from item where id = %d and id = parent limit 1",
+			intval($item['parent'])
+		);
+	}
 	if($p)
 		$parent = $p[0];
-	else {
-		logger('diaspora_send_downstream: no parent');
+	else
 		return;
-	}
 
-	$diaspora_fields = get_iconfig($item,'diaspora','fields');
-	if($diaspora_fields) {
-		$xmlout = diaspora_fields_to_xml($diaspora_fields);
-		$parentauthorsig = diaspora_sign_fields($diaspora_fields,$owner['channel_prvkey']);
-	}
+	$signed_fields = get_iconfig($item,'diaspora','fields');
 
-	$like = false;
-	$relay_retract = false;
-	$sql_sign_id = 'iid';
-
-	if( intval($item['item_deleted'])) {
-		$relay_retract = true;
-
-		$target_type = ( ($item['verb'] === ACTIVITY_LIKE && (! $sublike)) ? 'Like' : 'Comment');
-
-		$sql_sign_id = 'retract_iid';
-		$tpl = get_markup_template('diaspora_relayable_retraction.tpl','addon/diaspora');
-	}
-	elseif(($item['verb'] === ACTIVITY_LIKE) && (! $sublike) && ($xmlout)) {
-		$like = true;
-
-		$target_type = ( $parent['mid'] === $parent['parent_mid']  ? 'Post' : 'Comment');
-//		$positive = (intval($item['item_deleted']) ? 'false' : 'true');
-		$positive = 'true';
-
-		$tpl = get_markup_template('diaspora_like_relay.tpl','addon/diaspora');
-	}
-	else { // item is a comment
-		$tpl = get_markup_template('diaspora_comment_relay.tpl','addon/diaspora');
-	}
-
-	$diaspora_meta = (($item['diaspora_meta']) ? json_decode($item['diaspora_meta'],true) : '');
-	if($diaspora_meta) {
-		if(array_key_exists('iv',$diaspora_meta)) {
-			$key = get_config('system','prvkey');
-			$meta = json_decode(crypto_unencapsulate($diaspora_meta,$key),true);
-		}
-		else
-			$meta = $diaspora_meta;
-		$sender_signed_text = $meta['signed_text'];
-		$authorsig = $meta['signature'];
-		$handle = $meta['signer'];
-		$text = $meta['body'];
+	if($signed_fields) {
+		$msg = arrtoxml((($conv_like) ? 'like' : 'comment' ), $signed_fields);
 	}
 	else {
-		logger('diaspora_send_downstream: original author signature not found');
+		if($conv_like)
+			return;
+		if(get_pconfig($owner['channel_id'],'diaspora','sign_unsigned')) {
+			// copy the data so we can mess with it. 
+			$fake_item = $item;
+			// change the body to a simulated reshare of the author's content
+			diaspora_share_unsigned($fake_item,(($fake_item['author']) ? $fake_item['author'] : null));
+			// change the author to the item owner who will sign it
+			$fake_item['author_xchan'] = $fake_item['owner_xchan'];
+			$fake_item['author'] = $fake_item['owner'];
+			// The diaspora_post_local callback will sign it (with the owner's sig, since the author didn't supply one).
+			diaspora_post_local($fake_item);
+			// extract the signature we just created
+			$signed_fields = get_iconfig($fake_item,'diaspora','fields');
+			$msg = arrtoxml((($conv_like) ? 'like' : 'comment' ), $signed_fields);
+		}
+		else {
+			return;
+		}
 	}
-
-	/* Since the author signature is only checked by the parent, not by the relay recipients,
-	 * I think it may not be necessary for us to do so much work to preserve all the original
-	 * signatures. The important thing that Diaspora DOES need is the original creator's handle.
-	 * Let's just generate that and forget about all the original author signature stuff.
-	 *
-	 * Note: this might be more of an problem if we want to support likes on comments for older
-	 * versions of Diaspora (diaspora-pistos), but since there are a number of problems with
-	 * doing that, let's ignore it for now.
-	 *
-	 *
-	 */
-	
-	// bug - nomadic identity may/will affect diaspora_handle_from_contact
-
-	if(! $handle)
-		$handle = channel_reddress($owner);
-
-	if(! $sender_signed_text) {
-		if($relay_retract)
-			$sender_signed_text = $item['mid'] . ';' . $target_type;
-		elseif($like)
-			$sender_signed_text = $positive . ';' . $item['mid'] . ';' . $target_type . ';' . $parent['mid'] . ';' . $handle;
-		else
-			$sender_signed_text = $item['mid'] . ';' . $parent['mid'] . ';' . $text . ';' . $handle;
-	}
-
-
-
-	// The relayable may have arrived from somebody who provided no Diaspora Comment Virus. 
-	// We check for this above in bb2diaspora_itembody. In that case we will have generated 
-	// the body as a "wall-to-wall" post, and the author_signature will now be our own.  
-
-	if((! $xmlout) && (! $authorsig))
-		$authorsig = base64_encode(rsa_sign($sender_signed_text,$owner['channel_prvkey'],'sha256'));
-		
-	// Sign the relayable with the top-level owner's signature
-
-	if(! $parentauthorsig)
-		$parentauthorsig = base64_encode(rsa_sign($sender_signed_text,$owner['channel_prvkey'],'sha256'));
-
-	if(! $text)
-		logger('diaspora_send_downstream: no text');
-
-	$msg = replace_macros($tpl,array(
-		'$xml' => $xmlout,
-		'$guid' => xmlify($item['mid']),
-		'$parent_guid' => xmlify($parent['mid']),
-		'$target_type' =>xmlify($target_type),
-		'$authorsig' => xmlify($authorsig),
-		'$parentsig' => xmlify($parentauthorsig),
-		'$body' => xmlify($text),
-		'$positive' => xmlify($positive),
-		'$handle' => xmlify($handle)
-	));
 
 	logger('diaspora_send_downstream: base message: ' . $msg, LOGGER_DATA);
 
-	$slap = 'xml=' . urlencode(urlencode(diaspora_msg_build($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch)));
-
-	return(diaspora_queue($owner,$contact,$slap,$public_batch,$item['mid']));
+    $slap = diaspora_prepare_outbound($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch);
+    return(diaspora_queue($owner,$contact,$slap,$public_batch,$item['mid']));
 
 }
-
 
 
 function diaspora_send_retraction($item,$owner,$contact,$public_batch = false) {
 
 	$myaddr = channel_reddress($owner);
 
-	// Check whether the retraction is for a top-level post or whether it's a relayable
-	if( $item['mid'] !== $item['parent_mid'] ) {
+	if(! $item['item_deleted'])
+		return;
 
-		$tpl = get_markup_template('diaspora_relay_retraction.tpl','addon/diaspora');
-		$target_type = (($item['verb'] === ACTIVITY_LIKE) ? 'Like' : 'Comment');
+	$r = q("select xchan_addr from xchan where xchan_hash = '%s' limit 1",
+		dbesc($item['author_xchan'])
+	);
+	if($r) {
+		$author = $r[0]['xchan_addr'];
+	}
+	else
+		return;
+
+
+	if( $item['mid'] !== $item['parent_mid'] ) {
+		if(($item['verb'] === ACTIVITY_LIKE || $item['verb'] === ACTIVITY_DISLIKE) && ($item['obj_type'] === ACTIVITY_TYPE_POST || $item['obj_type'] === ACTIVITY_TYPE_COMMENT)) {
+			$target_type = 'Like';
+		}
+		else {
+			$target_type = 'Comment';
+		}
 	}
 	else {
-		
-		$tpl = get_markup_template('diaspora_signed_retract.tpl','addon/diaspora');
 		$target_type = 'StatusMessage';
 	}
 
-	$signed_text = $item['mid'] . ';' . $target_type;
+	$fields = [
+		'author'      => $author,
+		'target_guid' => $item['mid'],
+		'target_type' => $target_type
+	]; 
 
-	$msg = replace_macros($tpl, array(
-		'$guid'   => xmlify($item['mid']),
-		'$type'   => xmlify($target_type),
-		'$handle' => xmlify($myaddr),
-		'$signature' => xmlify(base64_encode(rsa_sign($signed_text,$owner['channel_prvkey'],'sha256')))
-	));
+	$msg = arrtoxml('retraction',$fields);
 
-	$slap = 'xml=' . urlencode(urlencode(diaspora_msg_build($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch)));
-
+	$slap = diaspora_prepare_outbound($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch);
 	return(diaspora_queue($owner,$contact,$slap,$public_batch,$item['mid']));
 }
 
@@ -632,9 +647,44 @@ function diaspora_send_mail($item,$owner,$contact) {
 
 	$parent_ptr = $cnv['guid'];
 
-	$body = bb2diaspora($item['body']);
+	$body = bb_to_markdown($item['body'], [ 'diaspora' ]);
+
+	if(defined('DIASPORA_V2')) {
+
+		$conv = null;
+		$created = datetime_convert('UTC','UTC',$item['created'],ATOM_TIME);
+		$message = [
+			'author' => $myaddr,
+			'guid' => $item['mid'],
+			'conversation_guid' => $cnv['guid'],
+			'text' => $body,
+			'created_at' => $created
+		]; 
+
+		if(! $item['mail_is_reply']) {
+			$conv = [
+				'author' => $cnv['creator'],
+				'guid' => $cnv['guid'],
+				'subject' => $cnv['subject'],
+				'created_at' => xmlify(datetime_convert('UTC','UTC',$cnv['created'],ATOM_TIME)),
+				'participants' => $cnv['recips'],
+				'message' => $message
+			];
+		}
+
+		if($conv) {
+			$outmsg = arrtoxml('conversation',$conv);
+		}
+		else {
+			$outmsg = arrtoxml('message',$message);
+		}
+
+		$slap = diaspora_prepare_outbound($outmsg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],false);
+		return(diaspora_queue($owner,$contact,$slap,$false,$item['mid']));
+	}
+
 	$created = datetime_convert('UTC','UTC',$item['created'],'Y-m-d H:i:s \U\T\C');
- 
+
 	$signed_text =  $item['mid'] . ';' . $parent_ptr . ';' . $body .  ';' 
 		. $created . ';' . $myaddr . ';' . $cnv['guid'];
 
@@ -738,6 +788,30 @@ function diaspora_profile_change($channel,$recip,$public_batch = false) {
 			}
 		}
 		$tags = xmlify(trim($tags));
+	}
+
+	if(defined('DIASPORA_V2')) {
+
+		$msg = [
+			'author'           => $handle,
+			'first_name'       => $first,
+			'last_name'        => $last,
+			'image_url'        => $large,
+			'image_url_medium' => $medium,
+			'image_url_small'  => $small,
+			'birthday'         => $dob,
+			'gender'           => $gender,
+			'bio'              => $about,
+			'location'         => $location,
+			'searchable'       => $searchable,
+			'public'           => $searchable,
+			'nsfw'             => $nsfw,
+			'tag_string'       => $tags
+		];
+
+		$outmsg = arrtoxml('profile',$msg);
+		$slap = diaspora_prepare_outbound($outmsg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch);
+		return(diaspora_queue($owner,$contact,$slap,$public_batch,$item['mid']));
 	}
 
 	$tpl = get_markup_template('diaspora_profile.tpl','addon/diaspora');

@@ -47,12 +47,12 @@ function nodeinfo_content(&$a) {
 			'openRegistrations' => ((get_config('system','register_policy') === REGISTER_OPEN) ? true : false),
 			'usage' => array(
 				'users' => array(
-					'total' => intval(get_config('statistics_json','total_users')),
-					'activeHalfyear' => intval(get_config('statistics_json','active_users_halfyear')),
-					'activeMonth' => intval(get_config('statistics_json','active_users_monthly')),
+					'total' => intval(get_config('system','channels_total_stat')),
+					'activeHalfyear' => intval(get_config('system','channels_active_halfyear_stat')),
+					'activeMonth' => intval(get_config('system','channels_active_monthly_stat')),
 				),
-				'localPosts' => intval(get_config('statistics_json','local_posts')),
-				'localComments' => intval(get_config('statistics_json','local_comments')),
+				'localPosts' => intval(get_config('system','local_posts_stat')),
+				'localComments' => intval(get_config('system','local_comments_stat')),
 			)
 		);
 
@@ -119,14 +119,15 @@ function nodeinfo_content(&$a) {
 			'protocols' => array('inbound' => array('zot'), 'outbound' => array('zot')),
 			'services' => array(),
 			'openRegistrations' => ((get_config('system','register_policy') === REGISTER_OPEN) ? true : false),
+
 			'usage' => array(
 				'users' => array(
-					'total' => intval(get_config('statistics_json','total_users')),
-					'activeHalfyear' => intval(get_config('statistics_json','active_users_halfyear')),
-					'activeMonth' => intval(get_config('statistics_json','active_users_monthly')),
+					'total' => intval(get_config('system','channels_total_stat')),
+					'activeHalfyear' => intval(get_config('system','channels_active_halfyear_stat')),
+					'activeMonth' => intval(get_config('system','channels_active_monthly_stat')),
 				),
-				'localPosts' => intval(get_config('statistics_json','local_posts')),
-				'localComments' => intval(get_config('statistics_json','local_comments')),
+				'localPosts' => intval(get_config('system','local_posts_stat')),
+				'localComments' => intval(get_config('system','local_comments_stat')),
 			)
 		);
 
@@ -145,7 +146,7 @@ function nodeinfo_content(&$a) {
 			$arr['protocols']['outbound'][] = 'friendica';
 		}
 
-		$services = [ 'atom1.0', 'rss2.0' ];
+		$services = [ 'atom1.0' ];
 		$iservices = [ 'atom1.0', 'rss2.0' ];
 
 		if(in_array('diaspost',App::$plugins))
@@ -170,11 +171,12 @@ function nodeinfo_content(&$a) {
 			$services[] = 'twitter';
 		if(in_array('wppost',App::$plugins)) {
 			$services[] = 'wordpress';
-			$iservices[] = 'wordpress';
+
+// apparently this is not legal in nodeinfo
+//			$iservices[] = 'wordpress';
 		}
 		if(in_array('xmpp',App::$plugins)) {
 			$services[] = 'xmpp';
-			$iservices[] = 'xmpp';
 		}
 
 		if($services)

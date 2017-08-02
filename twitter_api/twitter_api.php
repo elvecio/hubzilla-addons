@@ -421,7 +421,7 @@ function api_statuses_mediap( $type) {
 		
 	App::$argv[1] = $user_info['screen_name'];
 		
-	$_REQUEST['silent']='1'; //tell wall_upload function to return img info instead of echo
+	$_REQUEST['silent'] = '1'; //tell wall_upload function to return img info instead of echo
 	$_FILES['userfile'] = $_FILES['media'];
 
 	$mod = new Zotlabs\Module\Wall_attach();

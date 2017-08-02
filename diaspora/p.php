@@ -33,7 +33,7 @@ function p_init(&$a) {
 	$item = $r[0];
    
 	$title = $item['title'];
-	$body = bb2diaspora_itembody($item);
+	$body = bb_to_markdown($item['body'], [ 'diaspora' ]);
 	$created = datetime_convert('UTC','UTC',$item['created'],'Y-m-d H:i:s \U\T\C');
 
 	$tpl = get_markup_template('diaspora_post.tpl','addon/diaspora');

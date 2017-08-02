@@ -98,7 +98,6 @@ function pubsub_post(&$a) {
 		$importer_arr[] = $sys;
 
 
-
 	foreach($importer_arr as $channel) {
 		if(! $channel['system']) {
 			$connections = abook_connections($channel['channel_id'], ' and abook_id = ' . $contact_id);
@@ -118,6 +117,13 @@ function pubsub_post(&$a) {
 		if((! perm_is_allowed($channel['channel_id'],$xchan['xchan_hash'],'send_stream')) && (! $channel['system'])) {
 			logger('permission denied.');
 			continue;
+		}
+
+		if(! $channel['system']) {
+			q("update abook set abook_connected = '%s' where abook_id = %d",
+				dbesc(datetime_convert()),
+				intval($xchan['abook_id'])
+			);
 		}
 
 		consume_feed($xml,$channel,$xchan,1);

@@ -1,6 +1,5 @@
 # OpenStreetMap Plugin
-by Mike Macgirvin
-   Klaus Weidenbach
+by Mike Macgirvin and Klaus Weidenbach
 
 This addon allows you to use OpenStreetMap for displaying locations.
 
@@ -36,7 +35,7 @@ The Nominatim Server URL points to the reverse geocode service you want to use.
 Use the full URL with protocol (http/s) and path.
 You can configure the default zoom level on the map in the Default Zoom box.
 1 will show the whole world and 18 is the highest zoom level available.
-You can configure if a marker shoul be shown on the map
+You can configure if a marker should be shown on the map
 
 You can also use the CLI config utility for configuration:
 
@@ -63,9 +62,19 @@ with protocol (http/s) and trailing slash. You can configure the default zoom
 level on the map with *zoom*. 1 will show the whole world and 18 is the highest 
 zoom level available. This can vary between tile servers.
 
+## Usage
+
+To add an embedded map centered on a set of coordinates, use the following in your posts and any other content supporting BBcode:
+
+    [map=48.01234 9.4321]
+
+To embed a map based on the name of a location, enter the text between the [map][/map] tag:
+
+    [map]Sydney, Australia[/map]
+
 ## TODO
 
-* Find better way to handle location only items without coordinates
+* Find a better way to handle location only items without coordinates
   * Use Nominatim in "Set your location" window for suggestion and to get
   coordinates to use
 * Add OpenLayers (2-Clause BSD) or Leaflet (2-Clause BSD) for on-site displaying

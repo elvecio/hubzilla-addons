@@ -1,7 +1,7 @@
 <?php
 /**
- * Name: Random Planet, Empirial Version
- * Description: Sample Friendica plugin/addon. Set a random planet from the Emprire when posting.
+ * Name: Random Planet, Imperial Version
+ * Description: Set a random planet from the Star Wars Empire as your location when posting.
  * Version: 1.0
  * Author: Mike Macgirvin <http://macgirvin.com/profile/mike>
  * Author: Tony Baldwin <https://free-haven.org/profile/tony>
@@ -136,10 +136,6 @@ function planets_settings(&$a,&$s) {
 
 	if(! local_channel())
 		return;
-
-	/* Add our stylesheet to the page so we can make our settings look nice */
-
-	//App::$page['htmlhead'] .= '<link rel="stylesheet"  type="text/css" href="' . z_root() . '/addon/planets/planets.css' . '" media="all" />' . "\r\n";
 
 	/* Get the current state of our config variable */
 

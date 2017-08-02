@@ -11,10 +11,18 @@
 
 function hilite_install() {
 	Zotlabs\Extend\Hook::Register('text_highlight','addon/hilite/hilite.php','hilite_text_highlight');
+	Zotlabs\Extend\Hook::Register('load_pdl','addon/hilite/hilite.php','hilite_load_pdl');
 }
 
 function hilite_uninstall() {
 	Zotlabs\Extend\Hook::Unregister('text_highlight','addon/hilite/hilite.php','hilite_text_highlight');
+	Zotlabs\Extend\Hook::Unregister('load_pdl','addon/hilite/hilite.php','hilite_load_pdl');
+}
+
+function hilite_load_pdl(&$b) {
+	$css = head_get_css();
+	if(strpos($css,'Text_Highlighter/sample.css') === false)
+		head_add_css('/addon/hilite/Text_Highlighter/sample.css');
 }
 
 function hilite_text_highlight(&$x) {
@@ -41,13 +49,10 @@ function hilite_text_highlight(&$x) {
 		return;
 
 
-	$css = head_get_css();
-	if(strpos($css,'Text_Highlighter/sample.css') === false)
-		head_add_css('addon/hilite/Text_Highlighter/sample.css');
 
 	$s = $x['text'];
 
-   if(! strpos('Text_Highlighter', get_include_path())) {
+	if(! strpos('Text_Highlighter', get_include_path())) {
         set_include_path(get_include_path() . PATH_SEPARATOR . 'addon/hilite/Text_Highlighter');
     }
     require_once('addon/hilite/Text_Highlighter/Text/Highlighter.php');

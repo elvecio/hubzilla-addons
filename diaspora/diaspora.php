@@ -3,16 +3,14 @@
 
 /**
  * Name: Diaspora Protocol
- * Description: Diaspora Protocol (install statistics_json first if you wish to use public tag relays)
+ * Description: Diaspora Protocol. Install 'Diaspora Statistics' first if you wish to use public tag relays
  * Version: 1.0
  * Author: Mike Macgirvin
  * Maintainer: none
- * MinVersion: 1.15.1
- * ServerRoles: basic, standard
  */
 
-
-
+// use the new federation protocol
+define('DIASPORA_V2',1);
 
 require_once('include/crypto.php');
 require_once('include/items.php');
@@ -25,44 +23,48 @@ require_once('addon/diaspora/util.php');
 
 
 function diaspora_load() {
-	register_hook('notifier_hub', 'addon/diaspora/diaspora.php', 'diaspora_process_outbound');
-	register_hook('notifier_process', 'addon/diaspora/diaspora.php', 'diaspora_notifier_process');
-	register_hook('permissions_create', 'addon/diaspora/diaspora.php', 'diaspora_permissions_create');
-	register_hook('permissions_update', 'addon/diaspora/diaspora.php', 'diaspora_permissions_update');
-	register_hook('module_loaded', 'addon/diaspora/diaspora.php', 'diaspora_load_module');
-	register_hook('follow_allow', 'addon/diaspora/diaspora.php', 'diaspora_follow_allow');
-	register_hook('feature_settings_post', 'addon/diaspora/diaspora.php', 'diaspora_feature_settings_post');
-	register_hook('feature_settings', 'addon/diaspora/diaspora.php', 'diaspora_feature_settings');
-	register_hook('post_local','addon/diaspora/diaspora.php','diaspora_post_local');
-	register_hook('well_known','addon/diaspora/diaspora.php','diaspora_well_known');
-	register_hook('create_identity','addon/diaspora/diaspora.php','diaspora_create_identity');
-	register_hook('import_foreign_channel_data','addon/diaspora/diaspora.php','diaspora_import_foreign_channel_data');
+
+	Zotlabs\Extend\Hook::register_array('addon/diaspora/diaspora.php', [
+		'notifier_hub'                => 'diaspora_process_outbound',
+		'notifier_process'            => 'diaspora_notifier_process',
+		'permissions_create'          => 'diaspora_permissions_create',
+		'permissions_update'          => 'diaspora_permissions_update',
+		'module_loaded'               => 'diaspora_load_module',
+		'follow_allow'                => 'diaspora_follow_allow',
+		'feature_settings_post'       => 'diaspora_feature_settings_post',
+		'feature_settings'            => 'diaspora_feature_settings',
+		'post_local'                  => 'diaspora_post_local',
+		'well_known'                  => 'diaspora_well_known',
+		'create_identity'             => 'diaspora_create_identity',
+		'profile_sidebar'             => 'diaspora_profile_sidebar',
+		'discover_channel_webfinger'  => 'diaspora_discover',
+		'import_author'               => 'diaspora_import_author',
+		'markdown_to_bb_init'         => 'diaspora_markdown_to_bb_init',
+		'bb_to_markdown_bb'           => 'diaspora_bb_to_markdown_bb',
+		'service_plink'               => 'diaspora_service_plink',
+		'import_foreign_channel_data' => 'diaspora_import_foreign_channel_data',
+		'personal_xrd'                => 'diaspora_personal_xrd',
+		'author_is_pmable'            => 'diaspora_author_is_pmable',
+		'can_comment_on_post'         => 'diaspora_can_comment_on_post',
+		'queue_deliver'               => 'diaspora_queue_deliver'
+	]);
 
 	diaspora_init_relay();
 }
 
 function diaspora_unload() {
-	unregister_hook('notifier_hub', 'addon/diaspora/diaspora.php', 'diaspora_process_outbound');
-	unregister_hook('notifier_process', 'addon/diaspora/diaspora.php', 'diaspora_notifier_process');
-	unregister_hook('permissions_create', 'addon/diaspora/diaspora.php', 'diaspora_permissions_create');
-	unregister_hook('permissions_update', 'addon/diaspora/diaspora.php', 'diaspora_permissions_update');
-	unregister_hook('module_loaded', 'addon/diaspora/diaspora.php', 'diaspora_load_module');
-	unregister_hook('follow_allow', 'addon/diaspora/diaspora.php', 'diaspora_follow_allow');
-	unregister_hook('feature_settings_post', 'addon/diaspora/diaspora.php', 'diaspora_feature_settings_post');
-	unregister_hook('feature_settings', 'addon/diaspora/diaspora.php', 'diaspora_feature_settings');
-	unregister_hook('post_local','addon/diaspora/diaspora.php','diaspora_post_local');
-	unregister_hook('well_known','addon/diaspora/diaspora.php','diaspora_well_known');
-	unregister_hook('create_identity','addon/diaspora/diaspora.php','diaspora_create_identity');
-	unregister_hook('import_foreign_channel_data','addon/diaspora/diaspora.php','diaspora_import_foreign_channel_data');
+	Zotlabs\Extend\Hook::unregister_by_file('addon/diaspora/diaspora.php');
 }
 
 
 function diaspora_init_relay() {
 	if(! get_config('diaspora','relay_handle')) {
-		if(plugin_is_installed('statistics_json')) {
-			$x = import_author_diaspora(array('address' => 'relay@relay.iliketoast.net'));
-			if($x) {
-				set_config('diaspora','relay_handle',$x);
+		if(plugin_is_installed('statistics')) {
+			$x = ['author' => [ 'address' => 'relay@relay.iliketoast.net', 'network' => 'diaspora' ], 'result' => false ];
+			$placeholder = 'placeholder';
+			diaspora_import_author($placeholder, $x);
+			if($x['result']) {
+				set_config('diaspora','relay_handle',$x['result']);
 				// Now register
 				$url = "https://the-federation.info/register/" . App::get_hostname();
 				$ret = z_fetch_url($url);
@@ -71,11 +73,15 @@ function diaspora_init_relay() {
 	}
 }
 
+function diaspora_author_is_pmable(&$b) {
+	if($b['abook'] && (! intval($b['abook']['abook_not_here'])) && (strpos($b['xchan']['xchan_network'],'diaspora') !== false))
+		$b['result'] = true;
+}
 
-
-function diaspora_load_module(&$a, &$b) {
+function diaspora_load_module(&$b) {
 	if($b['module'] === 'receive') {
-		require_once('addon/diaspora/receive.php');
+		require_once('addon/diaspora/Mod_Receive.php');
+		$b['controller'] = new \Zotlabs\Module\Receive();
 		$b['installed'] = true;
 	}
 	if($b['module'] === 'p') {
@@ -90,7 +96,7 @@ function diaspora_load_module(&$a, &$b) {
 }
 
 
-function diaspora_well_known(&$a,&$b) {
+function diaspora_well_known(&$b) {
 	if(argc() > 1 && argv(1) === 'x-social-relay') {
 		$disabled = (get_config('system','disable_discover_tab') || get_config('system','disable_diaspora_discover_tab'));
 		$scope = 'all';
@@ -114,12 +120,27 @@ function diaspora_well_known(&$a,&$b) {
 }
 
 
+function diaspora_personal_xrd(&$b) {
+
+	if(! intval(get_pconfig($b['user']['channel_id'],'system','diaspora_allowed')))
+		return;
+
+	$dspr = replace_macros(get_markup_template('xrd_diaspora.tpl','addon/diaspora'),
+		[
+			'$baseurl'   => z_root(),
+			'$dspr_guid' => $b['user']['channel_guid'] . str_replace('.','',\App::get_hostname()),
+			'$dspr_key'  => base64_encode(pemtorsa($b['user']['channel_pubkey']))
+		]
+	);
+
+	$b['xml'] = str_replace('</XRD>',$dspr . "\n" . '</XRD>',$b['xml']);
+
+}
 
 
 
 
-
-function diaspora_permissions_create(&$a,&$b) {
+function diaspora_permissions_create(&$b) {
 	if($b['recipient']['xchan_network'] === 'diaspora' || $b['recipient']['xchan_network'] === 'friendica-over-diaspora') {
 
 		$b['deliveries'] = diaspora_share($b['sender'],$b['recipient']);
@@ -128,14 +149,14 @@ function diaspora_permissions_create(&$a,&$b) {
 	}
 }
 
-function diaspora_permissions_update(&$a,&$b) {
+function diaspora_permissions_update(&$b) {
 	if($b['recipient']['xchan_network'] === 'diaspora' || $b['recipient']['xchan_network'] === 'friendica-over-diaspora') {
 		discover_by_webbie($b['recipient']['xchan_hash']);
 		$b['success'] = 1;
 	}
 }
 
-function diaspora_notifier_process(&$a,&$arr) {
+function diaspora_notifier_process(&$arr) {
 
 	// if it is a public post (reply, etc.), add the chosen relay channel to the recipients
 
@@ -158,7 +179,7 @@ function diaspora_notifier_process(&$a,&$arr) {
 }
 
 
-function diaspora_process_outbound(&$a, &$arr) {
+function diaspora_process_outbound(&$arr) {
 
 /*
 
@@ -187,12 +208,31 @@ function diaspora_process_outbound(&$a, &$arr) {
 			);
 */
 
+	if(! strstr($arr['hub']['hubloc_network'],'diaspora'))
+		return;
+
+	logger('upstream: ' . $arr['upstream']);
 //	logger('notifier_array: ' . print_r($arr,true), LOGGER_ALL, LOG_INFO);
+
+
 
 	// allow this to be set per message
 
-	if(strpos($arr['target_item']['postopts'],'nodspr') !== false)
+	if(($arr['mail']) && intval($arr['item']['raw'])) {
+		logger('Cannot send raw data to Diaspora mail service.');
 		return;
+	}
+
+	if(array_key_exists('target_item',$arr) && is_array($arr['target_item'])) {
+		if(intval($arr['target_item']['item_obscured'])) {
+			logger('Cannot send raw data as a Diaspora activity.');
+			return;
+		}
+
+		if(strpos($arr['target_item']['postopts'],'nodspr') !== false) {
+			return;
+		}
+	}
 
 	$allowed = get_pconfig($arr['channel']['channel_id'],'system','diaspora_allowed');
 
@@ -306,7 +346,7 @@ function diaspora_process_outbound(&$a, &$arr) {
 			// downstream (private) posts
 
 			if(! $single) {
-				logger('Singleton private delivery ignored on this site. Will attempt from connected site.');
+				logger('Singleton private delivery ignored on this site.');
 				continue;
 			}
 				
@@ -333,6 +373,13 @@ function diaspora_process_outbound(&$a, &$arr) {
 
 		$contact = $arr['hub'];
 
+		if($arr['packet_type'] === 'keychange') {
+			$target_item = get_pconfig($arr['channel']['channel_id'],'system','keychange');
+			$qi = diaspora_send_migration($target_item,$arr['channel'],$contact,true);
+			if($qi)
+				$arr['queued'][] = $qi;
+			return;
+		}
 		if(intval($target_item['item_deleted']) 
 			&& ($target_item['mid'] === $target_item['parent_mid'])) {
 			// top-level retraction
@@ -371,9 +418,7 @@ function diaspora_process_outbound(&$a, &$arr) {
 function diaspora_queue($owner,$contact,$slap,$public_batch,$message_id = '') {
 
 
-	$allowed = get_pconfig($owner['channel_id'],'system','diaspora_allowed');
-	if($allowed === false)
-		$allowed = 1;
+	$allowed = get_pconfig($owner['channel_id'],'system','diaspora_allowed',1);
 
 	if(! intval($allowed)) {
 		return false;
@@ -387,8 +432,10 @@ function diaspora_queue($owner,$contact,$slap,$public_batch,$message_id = '') {
 
 	logger('diaspora_queue: URL: ' . $dest_url, LOGGER_DEBUG);	
 
-	if(intval(get_config('system','diaspora_test')) || intval(get_pconfig($owner['channel_id'],'system','diaspora_test')))
+	if(intval(get_config('system','diaspora_test')) || intval(get_pconfig($owner['channel_id'],'system','diaspora_test'))) {
+		logger('diaspora test mode - delivery disabled');
 		return false;
+	}
 
 	$hash = random_string();
 
@@ -398,7 +445,7 @@ function diaspora_queue($owner,$contact,$slap,$public_batch,$message_id = '') {
 		'hash'       => $hash,
 		'account_id' => $owner['channel_account_id'],
 		'channel_id' => $owner['channel_id'],
-		'driver'     => 'post',
+		'driver'     => 'diaspora',
 		'posturl'    => $dest_url,
 		'notify'     => '',
 		'msg'        => $slap
@@ -421,7 +468,7 @@ function diaspora_queue($owner,$contact,$slap,$public_batch,$message_id = '') {
 }
 
 
-function diaspora_follow_allow(&$a, &$b) {
+function diaspora_follow_allow(&$b) {
 
 	if($b['xchan']['xchan_network'] !== 'diaspora' && $b['xchan']['xchan_network'] !== 'friendica-over-diaspora')
 		return;
@@ -434,9 +481,11 @@ function diaspora_follow_allow(&$a, &$b) {
 }
 
 
-function diaspora_discover(&$a,&$b) {
+function diaspora_discover(&$b) {
 
 	require_once('include/network.php');
+
+	$webbie = $b['address'];
 
 	$result = array();
 	$network = null;
@@ -571,11 +620,9 @@ function diaspora_discover(&$a,&$b) {
 				dbesc($photos[3]),
 				dbesc($addr)
 			);
-			return true;
-
+			$b['success'] = true;
 		}
 
-	return false;
 
 /*
 	$vcard['fn'] = notags($vcard['fn']);
@@ -650,12 +697,13 @@ LSIeXnd14lQYK/uxW/8cTFjcmddsKxeXysoQxbSa9VdDK+KkpZdgYXYrTTofXs6v+
 }
 
 
-function diaspora_feature_settings_post(&$a,&$b) {
+function diaspora_feature_settings_post(&$b) {
 
 	if($_POST['diaspora-submit']) {
 		set_pconfig(local_channel(),'system','diaspora_allowed',intval($_POST['dspr_allowed']));
 		set_pconfig(local_channel(),'system','diaspora_public_comments',intval($_POST['dspr_pubcomment']));
 		set_pconfig(local_channel(),'system','prevent_tag_hijacking',intval($_POST['dspr_hijack']));
+		set_pconfig(local_channel(),'diaspora','sign_unsigned',intval($_POST['dspr_sign']));
 
 		$followed = $_POST['dspr_followed'];
 		$ntags = array();
@@ -669,7 +717,7 @@ function diaspora_feature_settings_post(&$a,&$b) {
 		}
 		set_pconfig(local_channel(),'diaspora','followed_tags',$ntags);
 
-		if(plugin_is_installed('statistics_json'))
+		if(plugin_is_installed('statistics'))
 			diaspora_build_relay_tags();
 		
 		info( t('Diaspora Protocol Settings updated.') . EOL);
@@ -677,18 +725,21 @@ function diaspora_feature_settings_post(&$a,&$b) {
 }
 
 
-function diaspora_feature_settings(&$a,&$s) {
+function diaspora_feature_settings(&$s) {
 
 	diaspora_init_relay();
 
 	$dspr_allowed = get_pconfig(local_channel(),'system','diaspora_allowed');
 	$pubcomments  = get_pconfig(local_channel(),'system','diaspora_public_comments',1);
 	$hijacking    = get_pconfig(local_channel(),'system','prevent_tag_hijacking');
+	$signing      = get_pconfig(local_channel(),'diaspora','sign_unsigned');
 	$followed     = get_pconfig(local_channel(),'diaspora','followed_tags');
 	if(is_array($followed))
 		$hashtags = implode(',',$followed);
 	else
 		$hashtags = '';
+
+	$sc = '<div>' . t('The Diaspora protocol does not support location independence. Connections you make within that network may be unreachable from alternate channel locations.') . '</div><br>';
 
 	$sc .= replace_macros(get_markup_template('field_checkbox.tpl'), array(
 		'$field'	=> array('dspr_allowed', t('Enable the Diaspora protocol for this channel'), $dspr_allowed, '', $yes_no),
@@ -702,7 +753,11 @@ function diaspora_feature_settings(&$a,&$s) {
 		'$field'	=> array('dspr_hijack', t('Prevent your hashtags from being redirected to other sites'), $hijacking, '', $yes_no),
 	));
 
-	if(plugin_is_installed('statistics_json')) {
+	$sc .= replace_macros(get_markup_template('field_checkbox.tpl'), array(
+		'$field'	=> array('dspr_sign', t('Sign and forward posts and comments with no existing Diaspora signature'), $signing, '', $yes_no),
+	));
+
+	if(plugin_is_installed('statistics')) {
 		$sc .= replace_macros(get_markup_template('field_input.tpl'), array(
 			'$field'	=> array('dspr_followed', t('Followed hashtags (comma separated, do not include the #)'), $hashtags, '')
 		));
@@ -719,29 +774,9 @@ function diaspora_feature_settings(&$a,&$s) {
 
 
 
-function diaspora_post_local(&$a,&$item) {
-
-	/**
-	 * If all the conditions are met, generate an instance of the Diaspora Comment Virus
-	 *
-	 * Previously all comments from any Hubzilla source (including those who have not opted in to
-	 * Diaspora federation), were required to locally generate a Diaspora comment signature.
-	 * The only exception was wall-to-wall posts which have no local signing authority.
-	 *
-	 * Going forward, if we are asked to propagate the virus and it is not present (due to the post author
-	 * not opting in to Diaspora federation); we will generate a "wall-to-wall" comment and not require 
-	 * a source signature. This allows hubs and communities to opt-out of Diaspora federation and not be
-	 * forced to generate the comment virus regardless. This is necessary because Diaspora now requires
-	 * the virus not just to provide a stored signature and Diaspora formatted text body, but must also 
-	 * include all XML fields presented by the Diaspora protocol when transmitting the comment, while
-	 * maintaining their source order. This is fine for federated communities using UNO, but it makes 
-	 * no sense to require this low-level baggage in channels and communities that have chosen not to use
-	 * the Diaspora protocol and services.
-	 *   
-	 */
+function diaspora_post_local(&$item) {
 
 	require_once('include/markdown.php');
-
 
 	if($item['mid'] === $item['parent_mid'])
 		return;
@@ -753,107 +788,70 @@ function diaspora_post_local(&$a,&$item) {
 	$author = channelx_by_hash($item['author_xchan']);
 	if($author) {
 
-		// The author has a local channel, If they have this connector installed,
-		// sign the comment and create a Diaspora Comment Virus. 
-
-		$dspr_allowed = get_pconfig($author['channel_id'],'system','diaspora_allowed');
-		if(! $dspr_allowed)
-			return;
-
 		$handle = channel_reddress($author);
+		$meta = null;
 
-		if($item['verb'] === ACTIVITY_LIKE) {
-			if($item['thr_parent'] == $item['parent_mid'] && $item['obj_type'] == ACTIVITY_OBJ_NOTE) {
+		if($item['verb'] === ACTIVITY_LIKE || $item['verb'] === ACTIVITY_DISLIKE) {
+			if($item['thr_parent'] === $item['parent_mid'] && $item['obj_type'] == ACTIVITY_OBJ_NOTE) {
 				$meta = [
-					'positive'        => 'true',
+					'positive'        => (($item['verb'] === ACTIVITY_LIKE) ? 'true' : 'false'),
 					'guid'            => $item['mid'],
-					'target_type'     => 'Post',
 					'parent_guid'     => $item['parent_mid'],
-					'diaspora_handle' => $handle
 				];
+				if(defined('DIASPORA_V2')) {
+					$meta['author']      = $handle;
+					$meta['parent_type'] = 'Post';
+				}
+				else {
+					$meta['diaspora_handle'] = $handle;
+					$meta['target_type']     = 'Post';
+				}
 			}
 		}
 		else {
-			$body = bb2diaspora_itembody($item,true,true);
+			$body = bb_to_markdown($item['body'], [ 'diaspora' ]);
 
 			$meta = [
 				'guid'            => $item['mid'],
 				'parent_guid'     => $item['parent_mid'],
-				'text'            => $body,
-				'diaspora_handle' => $handle
+				'text'            => $body
 			];
+
+			if(defined('DIASPORA_V2')) {
+				$meta['author']     = $handle;
+				$meta['created_at'] = datetime_convert('UTC','UTC', $item['created'], ATOM_TIME );
+			}
+			else {
+				$meta['diaspora_handle'] = $handle;
+			}
+
 		}
+
+		if(! $meta)
+			return;
 
 		$meta['author_signature'] = diaspora_sign_fields($meta, $author['channel_prvkey']);
-		if($item['author_xchan'] === $item['owner_xchan'])
+		if($item['author_xchan'] === $item['owner_xchan']) {
 			$meta['parent_author_signature'] = diaspora_sign_fields($meta,$author['channel_prvkey']);
-	}
-
-	if((! $meta) && ($item['author_xchan'] !== $item['owner_xchan'])) {
-
-		// A local comment arrived but the commenter does not have a local channel
-		// or the commenter doesn't have the Diaspora plugin enabled.
-		// The owner *should* have a local channel
-		// Find the owner and if the owner has this addon installed, turn the comment into
-		// a 'wall-to-wall' message containing the author attribution,
-		// with the comment signed by the owner.
-
-		$owner = channelx_by_hash($item['owner_xchan']);
-		if(! $owner)
-			return;
-
-		$dspr_allowed = get_pconfig($owner['channel_id'],'system','diaspora_allowed');
-		if(! $dspr_allowed)
-			return;
-
-		$handle = channel_reddress($owner);
-
-		if($item['verb'] === ACTIVITY_LIKE) {
-			if($item['thr_parent'] == $item['parent_mid'] && $item['obj_type'] == ACTIVITY_OBJ_NOTE) {
-				$meta = [
-					'positive'        => 'true',
-					'guid'            => $item['mid'],
-					'target_type'     => 'Post',
-					'parent_guid'     => $item['parent_mid'],
-					'diaspora_handle' => $handle
-				];
-			}
 		}
-		else {
-			$body = bb2diaspora_itembody($item,true,false);
-			$meta = [
-				'guid'            => $item['mid'],
-				'parent_guid'     => $item['parent_mid'],
-				'text'            => $body,
-				'diaspora_handle' => $handle
-			];
-		}
-
-		$meta['author_signature'] = diaspora_sign_fields($meta, $owner['channel_prvkey']);
-		$meta['parent_author_signature'] = diaspora_sign_fields($meta,$owner['channel_prvkey']);
 	}
-
 
 	if($meta)
 		set_iconfig($item,'diaspora','fields', $meta, true);
 
-	// otherwise, neither the author or owner have this plugin installed. Do nothing. 
-
-
-// 	logger('ditem: ' . print_r($item,true));
 
 }
 
 
-function diaspora_create_identity($a,$b) {
+function diaspora_create_identity($b) {
 
-	if(get_config('system','server_role') === 'basic' || get_config('system','diaspora_allowed')) {
+	if(get_config('system','diaspora_allowed')) {
 		set_pconfig($b,'system','diaspora_allowed','1');
 	}
 
 }
 
-function diaspora_import_foreign_channel_data($a,&$data) {
+function diaspora_import_foreign_channel_data(&$data) {
 
 	if(array_key_exists('user',$data) && array_key_exists('version',$data)) {
 		require_once('addon/diaspora/import_diaspora.php');
@@ -863,3 +861,263 @@ function diaspora_import_foreign_channel_data($a,&$data) {
 	}
 }
 		
+function diaspora_profile_sidebar(&$x) {
+
+	$profile = $x['profile'];
+
+	$firstname = ((strpos($profile['channel_name'],' '))
+		? trim(substr($profile['channel_name'],0,strpos($profile['channel_name'],' '))) : $profile['channel_name']);
+	$lastname = (($firstname === $profile['channel_name']) 
+			? '' : trim(substr($profile['channel_name'],strlen($firstname))));
+
+	$vcarddata = replace_macros(get_markup_template('diaspora_vcard.tpl','addon/diaspora'), 
+		[
+			'$podloc'     => z_root(),
+			'$guid'       => $profile['channel_guid'] . str_replace('.','',App::get_hostname()),
+			'$pubkey'     => pemtorsa($profile['channel_pubkey']),
+			'$searchable' => ((observer_prohibited()) ? 'false' : 'true'),
+			'$nickname'   => $profile['channel_address'],
+			'$fullname'   => $profile['channel_name'],
+			'$firstname'  => $firstname,
+			'$lastname'   => $lastname,
+			'$photo300'   => z_root() . '/photo/profile/300/' . $profile['uid'] . '.jpg',
+			'$photo100'   => z_root() . '/photo/profile/100/' . $profile['uid'] . '.jpg',
+			'$photo50'    => z_root() . '/photo/profile/50/'  . $profile['uid'] . '.jpg',
+		]
+	);
+
+	$x['entry'] = str_replace('<div class="hcard-addon"></div>',$vcarddata . '<div class="hcard-addon"></div>', $x['entry']);
+
+}
+
+
+function diaspora_import_author(&$b) {
+
+	$x = $b['author'];
+
+	if(strpos($x['network'],'diaspora') === false)
+		return;
+
+	if(! $x['address'])
+		return;
+
+	$r = q("select * from xchan where xchan_addr = '%s' limit 1",
+		dbesc($x['address'])
+	);
+	if($r) {
+		logger('in_cache: ' . $x['address'], LOGGER_DATA);
+		$b['result'] = $r[0]['xchan_hash'];
+		return;
+	}
+
+	if(discover_by_webbie($x['address'])) {
+		$r = q("select xchan_hash from xchan where xchan_addr = '%s' limit 1",
+			dbesc($x['address'])
+		);
+		if($r) {
+			$b['result'] = $r[0]['xchan_hash'];
+			return;
+		}
+	}
+
+	return;
+
+}
+
+
+function diaspora_md_mention_callback($matches) {
+
+    $webbie = $matches[2] . '@' . $matches[3];
+    $link = '';
+    if($webbie) {
+        $r = q("select * from hubloc left join xchan on hubloc_hash = xchan_hash where hubloc_addr = '%s' limit 1",
+            dbesc($webbie)
+        );
+        if(! $r) {
+            $x = discover_by_webbie($webbie);
+            if($x) {
+                $r = q("select * from hubloc left join xchan on hubloc_hash = xchan_hash where hubloc_addr = '%s' limit 1",
+                    dbesc($webbie)
+                );
+            }
+        }
+        if($r)
+            $link = $r[0]['xchan_url'];
+    }
+    if(! $link)
+        $link = 'https://' . $matches[3] . '/u/' . $matches[2];
+
+    if($r && $r[0]['hubloc_network'] === 'zot')
+        return '@[zrl=' . $link . ']' . trim($matches[1]) . ((substr($matches[0],-1,1) === '+') ? '+' : '') . '[/zrl]' ;
+    else
+        return '@[url=' . $link . ']' . trim($matches[1]) . ((substr($matches[0],-1,1) === '+') ? '+' : '') . '[/url]' ;
+
+}
+
+function diaspora_md_mention_callback2($matches) {
+
+    $webbie = $matches[1] . '@' . $matches[2];
+    $link = '';
+    if($webbie) {
+        $r = q("select * from hubloc left join xchan on hubloc_hash = xchan_hash where hubloc_addr = '%s' limit 1",
+            dbesc($webbie)
+        );
+        if(! $r) {
+            $x = discover_by_webbie($webbie);
+            if($x) {
+                $r = q("select * from hubloc left join xchan on hubloc_hash = xchan_hash where hubloc_addr = '%s' limit 1",
+                    dbesc($webbie)
+                );
+            }
+        }
+        if($r)
+            $link = $r[0]['xchan_url'];
+    }
+
+    $name = (($r) ? $r[0]['xchan_name'] : $matches[1]);
+
+    if(! $link)
+        $link = 'https://' . $matches[2] . '/u/' . $matches[1];
+
+    if($r && $r[0]['hubloc_network'] === 'zot')
+        return '@[zrl=' . $link . ']' . trim($name) . ((substr($matches[0],-1,1) === '+') ? '+' : '') . '[/zrl]' ;
+    else
+        return '@[url=' . $link . ']' . trim($name) . ((substr($matches[0],-1,1) === '+') ? '+' : '') . '[/url]' ;
+
+}
+
+function diaspora_markdown_to_bb_init(&$s) {
+
+	// if empty link text replace with the url
+	$s = preg_replace("/\[\]\((.*?)\)/ism",'[$1]($1)',$s);
+
+  	$s = preg_replace_callback('/\@\{(.+?)\; (.+?)\@(.+?)\}\+/','diaspora_md_mention_callback',$s);
+	$s = preg_replace_callback('/\@\{(.+?)\; (.+?)\@(.+?)\}/','diaspora_md_mention_callback',$s);
+
+	$s = preg_replace_callback('/\@\{(.+?)\@(.+?)\}\+/','diaspora_md_mention_callback2',$s);
+	$s = preg_replace_callback('/\@\{(.+?)\@(.+?)\}/','diaspora_md_mention_callback2',$s);
+
+
+}
+
+
+
+function diaspora_bb_to_markdown_bb(&$x) {
+
+	if(! in_array('diaspora',$x['options']))
+		return;	
+
+	$Text = $x['bbcode'];
+
+	$Text = preg_replace_callback('/\@\!?\[([zu])rl\=(\w+.*?)\](\w+.*?)\[\/([zu])rl\]/i', 
+		'diaspora_bb_to_markdown_mention_callback', $Text);
+
+
+	// strip map and embed tags, as the rendering is performed in bbcode() and the resulting output
+	// is not compatible with Diaspora (at least in the case of openstreetmap and probably
+	// due to the inclusion of an html iframe)
+
+	$Text = preg_replace("/\[map\=(.*?)\]/ism", '$1', $Text);
+	$Text = preg_replace("/\[map\](.*?)\[\/map\]/ism", '$1', $Text);
+
+	$Text = preg_replace("/\[embed\](.*?)\[\/embed\]/ism", '$1', $Text);
+
+	$x['bbcode'] = $Text;
+}
+
+
+
+function diaspora_bb_to_markdown_mention_callback($match) {
+
+	// may-2017 this needs to be updated to the "new protocol" where it is just '{$handle}'
+	// but we'll wait until a majority of sites are running the new protocol
+
+    $r = q("select xchan_addr from xchan where xchan_url = '%s'",
+        dbesc($match[2])
+    );
+
+    if($r)
+        return '@{' . $match[3] . ' ; ' . $r[0]['xchan_addr'] . '}';
+
+    return '@' . $match[3];
+}
+
+function diaspora_service_plink(&$b) {
+	$contact = $b['xchan'];
+	$url     = $b['url'];
+	$guid    = $b['guid'];
+
+	if($contact['xchan_network'] === 'diaspora')
+		$b['plink'] = $url . '/posts/' . $guid;
+	if($contact['xchan_network'] === 'friendica-over-diaspora')
+		$b['plink'] = $url . '/display/' . $handle . '/' . $guid;
+
+
+}
+
+function diaspora_can_comment_on_post(&$b) {
+	if(local_channel() && strpos($b['item']['comment_policy'],'diaspora') !== false) {
+		$b['allowed'] = get_pconfig(local_channel(),'system','diaspora_allowed');
+	}
+}
+
+
+function diaspora_queue_deliver(&$b) {
+
+	$outq = $b['outq'];
+	$base = $b['base'];
+	$immediate = $b['immediate'];
+
+
+	if($outq['outq_driver'] === 'diaspora') {
+		$b['handled'] = true;
+		$first_char = substr(trim($outq['outq_msg']),0,1);
+
+		if($first_char === '{')
+			$content_type = 'application/json';
+		elseif($first_char === '<')
+			$content_type = 'application/magic-envelope+xml';
+		else
+			$content_type = 'application/x-www-form-urlencoded';
+
+
+		$retries = 0;
+		$result = z_post_url($outq['outq_posturl'],$outq['outq_msg'],$retries,[ 'headers' => [ 'Content-type: ' . $content_type ]] );
+
+		if($result['success'] && $result['return_code'] < 300) {
+			logger('deliver: queue post success to ' . $outq['outq_posturl'], LOGGER_DEBUG);
+			if($base) {
+				q("update site set site_update = '%s', site_dead = 0 where site_url = '%s' ",
+					dbesc(datetime_convert()),
+					dbesc($base)
+				);
+			}
+			q("update dreport set dreport_result = '%s', dreport_time = '%s' where dreport_queue = '%s'",
+				dbesc('accepted for delivery'),
+				dbesc(datetime_convert()),
+				dbesc($outq['outq_hash'])
+			);
+			remove_queue_item($outq['outq_hash']);
+
+			// server is responding - see if anything else is going to this destination and is piled up 
+			// and try to send some more. We're relying on the fact that do_delivery() results in an 
+			// immediate delivery otherwise we could get into a queue loop. 
+
+			if(! $immediate) {
+				$x = q("select outq_hash from outq where outq_posturl = '%s' and outq_delivered = 0",
+					dbesc($outq['outq_posturl'])
+				);
+
+				$piled_up = array();
+				if($x) {
+					foreach($x as $xx) {
+						 $piled_up[] = $xx['outq_hash'];
+					}
+				}
+				if($piled_up) {
+					do_delivery($piled_up);
+				}
+			}
+		}
+	}
+}

@@ -205,8 +205,32 @@ function salmon_post(&$a) {
 
 	if(activity_match($item['verb'],ACTIVITY_FOLLOW) && $item['obj_type'] === ACTIVITY_OBJ_PERSON) {
 
-		$cb = array('item' => $item,'channel' => $importer, 'xchan' => $xchan, 'author' => $datarray['author'], 'caught' => false);
+		$cb = [
+			'item'    => $item,
+			'channel' => $importer, 
+			'xchan'   => $xchan, 
+			'author'  => $datarray['author'], 
+			'caught'  => false
+		];
+
 		call_hooks('follow_from_feed',$cb);
+		if($cb['caught'])
+			http_status_exit(200);
+
+	}
+
+
+	if(activity_match($item['verb'],ACTIVITY_UNFOLLOW) && $item['obj_type'] === ACTIVITY_OBJ_PERSON) {
+
+		$cb = [
+			'item'    => $item,
+			'channel' => $importer, 
+			'xchan'   => $xchan, 
+			'author'  => $datarray['author'], 
+			'caught'  => false
+		];
+
+		call_hooks('unfollow_from_feed',$cb);
 		if($cb['caught'])
 			http_status_exit(200);
 
@@ -215,7 +239,7 @@ function salmon_post(&$a) {
 
 	$m = parse_url($xchan['xchan_url']);
 	if($m) {
-		$host = $m['scheme'] . '://' . $m['host'];
+		$host = $m['scheme'] . '://' . $m['host'] . (($m['port']) ? ':' . $m['port'] : '');
 		
     	q("update site set site_dead = 0, site_update = '%s' where site_type = %d and site_url = '%s'",
         	dbesc(datetime_convert()),
@@ -227,7 +251,6 @@ function salmon_post(&$a) {
 			http_status_exit(403, 'permission denied.');
 		}
 	}
-
 
 	$importer_arr = array($importer);
 	if(! $sys_disabled) {
@@ -251,100 +274,16 @@ function salmon_post(&$a) {
 				$status = 202;
         		continue;
 			}
-		}
-
-
-
-
-		$parent_item = null;
-		if($item['parent_mid']) {
-			$r = q("select * from item where mid = '%s' and uid = %d limit 1",
-				dbesc($item['parent_mid']),
+			$r = q("update abook set abook_connected = '%s' where abook_xchan = '%s' and abook_channel = %d",
+				dbesc(datetime_convert()),
+				dbesc($xchan['xchan_hash']),
 				intval($importer['channel_id'])
 			);
-			if(! $r) {
-				logger('mod-salmon: parent item not found.');
-				if(! $importer['system'])
-					$status = 202;
-				continue;
-			}
-			$parent_item = $r[0];
-
-			if(intval($parent_item['item_nocomment']) || $parent_item['comment_policy'] === 'none' 
-				|| ($parent_item['comments_closed'] > NULL_DATE && $parent_item['comments_closed'] < datetime_convert())) {
-				logger('mod_salmon: comments disabled for post ' . $parent_item['mid']);
-				$status = 202;
-				continue;
-			}
+			$importer['send_downstream'] = true;
 		}
-	
-		$allowed = false;
-
-		if($parent_item) {
-			if($parent_item['owner_xchan'] == $importer['channel_hash']) 
-				$allowed = perm_is_allowed($importer['channel_id'],$xchan['xchan_hash'],'post_comments');
-			else
-				$allowed = true;
-
-			if(! $allowed) {
-				logger('mod-salmon: Ignoring this comment author.');
-				$status = 202;
-				continue;
-			}
-		}
-		else {
-			if((! perm_is_allowed($importer['channel_id'],$xchan['xchan_hash'],'send_stream')) && (! $importer['system'])) {
-				// check for and process ostatus autofriend
-
-
-				// ... fixme
-	
-				// otherwise 
-
-				logger('mod-salmon: Ignoring this author.');
-				$status = 202;
-				continue;
-			}
-		}
-
-
-		if(! $item['author_xchan'])
-			$item['author_xchan'] = $xchan['xchan_hash'];
-
-		$item['owner_xchan'] = (($parent_item) ? $parent_item['owner_xchan'] : $xchan['xchan_hash']);
-
-
-		$r = q("SELECT edited FROM item WHERE mid = '%s' AND uid = %d LIMIT 1",
-			dbesc($item['mid']),
-			intval($importer['channel_id'])
-		);
-
-
-		// Update content if 'updated' changes
-		// currently a no-op @fixme
-
-		if($r) {
-		   if((x($item,'edited') !== false) 
-				&& (datetime_convert('UTC','UTC',$item['edited']) !== $r[0]['edited'])) {
-			   	// do not accept (ignore) an earlier edit than one we currently have.
-			   	if(datetime_convert('UTC','UTC',$item['edited']) > $r[0]['edited'])
-					update_feed_item($importer['channel_id'],$item);
-			}
-			if(! $importer['system'])
-				$status = 200;
-			continue;
-		}
-
-		if(! $item['parent_mid'])
-			$item['parent_mid'] = $item['mid'];
 		
-		$item['aid'] = $importer['channel_account_id'];
-		$item['uid'] = $importer['channel_id'];
-
-		logger('consume_feed: ' . print_r($item,true),LOGGER_DATA);
-
-		$xx = item_store($item);
-		$r = $xx['item_id'];
+		consume_feed($data,$importer,$xchan,0);
+		consume_feed($data,$importer,$xchan,1);
 
 		if(! $importer['system'])
 			$status = 200;

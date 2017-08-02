@@ -26,6 +26,9 @@ function tripleaes_crypto_methods(&$x) {
 
 function tripleaes_other_encapsulate(&$a) {
 
+	if($a['alg'] !== 'tripleaes')
+		return;
+
 	$x1 = aes_encapsulate($a['data'],$a['pubkey']);
 	$x2 = aes_encapsulate(json_encode($x1),$a['pubkey']);
 	$a['result'] = aes_encapsulate(json_encode($x2),$a['pubkey']);
@@ -33,6 +36,9 @@ function tripleaes_other_encapsulate(&$a) {
 }
 
 function tripleaes_other_unencapsulate(&$a) {
+
+	if($a['alg'] !== 'tripleaes')
+		return;
 
 	$x1 = json_decode(aes_unencapsulate($a['data'],$a['prvkey']),true);
 	$x2 = json_decode(aes_unencapsulate($x1,$a['prvkey']),true);

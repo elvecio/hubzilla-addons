@@ -39,6 +39,7 @@ function pubsubhubbub_load() {
 	register_hook('queue_deliver','addon/pubsubhubbub/pubsubhubbub.php','push_queue_deliver');
 	register_hook('atom_feed','addon/pubsubhubbub/pubsubhubbub.php','push_atom_feed');
 	register_hook('module_loaded', 'addon/pubsubhubbub/pubsubhubbub.php','push_module_loaded');
+	register_hook('channel_mod_content', 'addon/pubsubhubbub/pubsubhubbub.php','push_channel_mod_content');
 
 }
 
@@ -47,6 +48,7 @@ function pubsubhubbub_unload() {
 	unregister_hook('queue_deliver','addon/pubsubhubbub/pubsubhubbub.php','push_queue_deliver');
 	unregister_hook('atom_feed','addon/pubsubhubbub/pubsubhubbub.php','push_atom_feed');
 	unregister_hook('module_loaded', 'addon/pubsubhubbub/pubsubhubbub.php','push_module_loaded');
+	unregister_hook('channel_mod_content', 'addon/pubsubhubbub/pubsubhubbub.php','push_channel_mod_content');
 }
 
 
@@ -59,6 +61,29 @@ function push_module_loaded(&$a,&$b) {
 	if($b['module'] === 'pubsub') {
 		require_once('addon/pubsubhubbub/pubsub.php');
 		$b['installed'] = true;
+	}
+}
+
+function push_channel_mod_content($a,&$b) {
+
+	if(! App::$profile)
+		return;
+
+	$channel = App::$profile['channel_address'];
+
+	if($channel) {
+		head_add_link([
+			'rel'  => 'hub',
+			'href' => z_root() . '/pubsubhubbub'
+		]);
+
+		// This is technically correct, but at this time is not recognised as a feed topic and
+		// will only be recognised as such with particular/select content-types. 
+
+		head_add_link([
+			'rel'  => 'self',
+			'href' => z_root() . '/channel/' . $channel
+		]);
 	}
 }
 
