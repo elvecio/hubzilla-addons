@@ -24,6 +24,11 @@ class ActivityStreams {
 			$this->actor = $this->get_compound_property('actor');
 			$this->obj   = $this->get_compound_property('object');
 			$this->tgt   = $this->get_compound_property('target');
+
+			if(($this->type === 'Note') && (! $this->obj)) {
+				$this->obj = $this->data;
+				$this->type = 'Create';
+			}
 		}
 	}
 
@@ -32,16 +37,14 @@ class ActivityStreams {
 	}
 
 	function get_property_obj($property,$base = '') {
-		if(! $base) {
-			$base = $this->data;
-		}
-		return $base[$property];
+		$base = (($base) ? $base : $this->data);
+		return ((array_key_exists($property,$base)) ? $base[$property] : null);
 	}
 
 	function fetch_property($url) {
 		$redirects = 0;
 		$x = z_fetch_url($url,true,$redirects,
-			['headers' => [ 'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"']]);
+			['headers' => [ 'Accept: application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"']]);
 		if($x['success'])
 			return json_decode($x['body'],true);
 		return null;

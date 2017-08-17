@@ -125,7 +125,7 @@ class Diaspora_Receiver {
 					]
 				);
 
-				if($my_perms) {
+				if($my_perms && $automatic) {
 					// Send back a sharing notification to them
 					$x = diaspora_share($this->importer,$new_connection[0]);
 					if($x)
@@ -205,20 +205,30 @@ class Diaspora_Receiver {
 				$app = 'Diaspora';
 		}
 
+		$created = notags($this->get_property('created_at'));
+		$private = (($this->get_property('public') === 'false') ? 1 : 0);
+
 
 		$r = q("SELECT id FROM item WHERE uid = %d AND mid = '%s' LIMIT 1",
 			intval($this->importer['channel_id']),
 			dbesc($guid)
 		);
 
+		$updated = false;
+
 		if($r) {
 			// check dates if post editing is implemented
-			logger('diaspora_post: message exists: ' . $guid);
-			return;
+
+			$edited = datetime_convert('UTC','UTC',$created);
+			if($edited > $r[0]['edited']) { 
+				$updated = true;
+			}
+			else {
+				logger('diaspora_post: message exists: ' . $guid);
+				return;
+			}
 		}
 
-		$created = notags($this->get_property('created_at'));
-		$private = (($this->get_property('public') === 'false') ? 1 : 0);
 
 		$body = markdown_to_bb($this->get_body());
 
@@ -328,7 +338,12 @@ class Diaspora_Receiver {
 		$datarray['verb'] = ACTIVITY_POST;
 		$datarray['mid'] = $datarray['parent_mid'] = $guid;
 
-		$datarray['changed'] = $datarray['created'] = $datarray['edited'] = datetime_convert('UTC','UTC',$created);
+		if($updated) {
+			$datarray['changed'] = $datarray['edited'] = $edited;
+		}
+		else {
+			$datarray['changed'] = $datarray['created'] = $datarray['edited'] = datetime_convert('UTC','UTC',$created);
+		}
 		$datarray['item_private'] = $private;
 
 		$datarray['plink'] = $plink;
@@ -362,7 +377,12 @@ class Diaspora_Receiver {
 			return 202;
 		}
 
-		$result = item_store($datarray);
+		if($updated) {
+			$result = item_store_update($datarray);
+		}
+		else {
+			$result = item_store($datarray);
+		}
 
 		if($result['success']) {
 			sync_an_item($this->importer['channel_id'],$result['item_id']);
@@ -403,7 +423,7 @@ class Diaspora_Receiver {
 		$orig_author = notags($this->get_root_author());
 		$orig_guid = notags($this->get_property('root_guid'));
 
-		$source_url = 'https://' . substr($orig_author,strpos($orig_author,'@')+1) . '/p/' . $orig_guid . '.xml';
+		$source_url = 'https://' . substr($orig_author,strpos($orig_author,'@')+1) . '/fetch/post/' . $orig_guid ;
 		$orig_url = 'https://'.substr($orig_author,strpos($orig_author,'@')+1).'/posts/'.$orig_guid;
 
 		$source_xml = get_diaspora_reshare_xml($source_url);

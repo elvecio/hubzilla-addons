@@ -69,12 +69,12 @@
   top: 2px;
   left: 2px;
 }
-
+/*
 label {
   width: 200px;
   border-radius: 3px;
   border: 1px solid #D1D3D4
-}
+}*/
 
 /* hide input */
 input.radio:empty {
@@ -133,4 +133,35 @@ input.radio:checked ~ label {
 /* radio focus */
 input.radio:focus ~ label:before {
 	box-shadow: 0 0 0 3px #999;
+}
+
+
+#chess-games-owner > li,
+#chess-controls-history-collapse,
+#chess-controls-game-collapse {
+	margin-left: 10px;
+}
+
+.settings-label {
+	border: none;
+}
+
+#chess-revert {
+	margin-bottom: 10px;
+}
+
+
+#chess-controls .section-subtitle-wrapper {
+	background-color: #F0D9B5;
+}
+
+#chess-games-owner a {
+	color: gray;
+}
+
+#chess-new-form input {
+	margin-left: 10px;
+}
+#chess-new-form button {
+	margin-left: 20px;
 }

@@ -102,15 +102,21 @@ function push_notifier_process(&$a,&$b) {
 		return;
 	}
 
-	if($b['upstream'])  {
-		logger('Not a downstream post. Not suitable for PuSH forwarding.');
-		return;
-	}
-
-
 	// find push_subscribers following this $owner
 
 	$channel = $b['channel'];
+
+	// We will send a copy to all our ostatus/websub followers going both upstream and downstream.
+	// This could result in duplicated deliveries if the top-level post is our own.
+	// Check for that condition and only send downstream in that case.
+ 
+	if(array_key_exists('parent_item',$b) && $b['parent_item']) {
+
+		if($b['upstream'] && $channel['channel_hash'] === $b['parent_item']['owner_xchan']) {
+			return;
+		}
+	}
+
 
 	// allow subscriptions either by http or https, as gnu-social has been known to subscribe
 	// to the wrong one.
@@ -131,7 +137,7 @@ function push_notifier_process(&$a,&$b) {
 
 		$feed = get_feed_for($channel,'',array('begin' => $rr['last_update'], 'compat' => $compat, 'start' => 0, 'records' => 255 ));
 
-		logger('feed: ' . $feed,LOGGER_DATA);
+		// logger('feed: ' . $feed,LOGGER_DATA);
 
 		$hmac_sig = hash_hmac("sha1", $feed, $rr['secret']);
 
@@ -168,8 +174,8 @@ function push_notifier_process(&$a,&$b) {
 		$b['queued'][] = $hash;
 	}
 
-
 }
+
 
 function push_queue_deliver(&$a,&$b) {
 

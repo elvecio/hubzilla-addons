@@ -486,6 +486,7 @@ function gnusoc_notifier_process(&$a,&$b) {
 	if(! perm_is_allowed($channel['channel_id'],'','view_stream'))
 		return;
 
+	// $b['recipients'][0] should point to the top level post owner
 
 	if($b['upstream']) {
 		$r = q("select * from abook left join hubloc on abook_xchan = hubloc_hash where hubloc_network = 'gnusoc' and abook_channel = %d and hubloc_hash = '%s'",
@@ -493,21 +494,37 @@ function gnusoc_notifier_process(&$a,&$b) {
 			dbesc(trim($b['recipients'][0],"'"))
 		);
 	}
-	else {
-	    // find gnusoc subscribers following this $owner
-		$r = q("select * from abook left join hubloc on abook_xchan = hubloc_hash where hubloc_network = 'gnusoc' and abook_channel = %d",
-			intval($channel['channel_id'])
-		);
-	}
-
-	if(! $r)
-		return;
 
 	$recips = array();
-	foreach($r as $rr) {
-		if(perm_is_allowed($channel['channel_id'],$rr['hubloc_hash'],'view_stream'))
-			$recips[] = $rr;
 
+	// also send salmon slaps to anybody who was mentioned in the comment to match OStatus expected behaviour;
+	// however they need to be registered on this site (have a valid xchan and hubloc) from some prior
+	// activity and also be OStatus. 
+
+	if((is_array('term',$b['target_item'])) && count($b['target_item']['term'])) {
+		foreach($b['target_item']['term'] as $t) {
+			if(intval($t['ttype']) != TERM_MENTION)
+				continue;
+			$m = q("select * from abook left join hubloc on abook_xchan = hubloc_hash where hubloc_network = 'gnusoc' and abook_channel = %d and hubloc_hash = '%s'",
+				intval($channel['channel_id']),
+				dbesc($t['url'])
+			);
+			if($m) {
+				foreach($m as $mentioned) {
+					if(perm_is_allowed($channel['channel_id'],$mentioned['hubloc_hash'],'view_stream')) {
+						$recips[] = $mentioned;
+					}
+				}
+			}
+		}
+	}
+
+	if($r) {
+		foreach($r as $rr) {
+			if(perm_is_allowed($channel['channel_id'],$rr['hubloc_hash'],'view_stream')) {
+				$recips[] = $rr;
+			}
+		}
 	}
 
 	if(! $recips)
@@ -515,31 +532,33 @@ function gnusoc_notifier_process(&$a,&$b) {
 
 	$slap = atom_entry($b['target_item'],'html',null,null,false);
 	if($b['upstream']) {
-		$slap = str_replace('</entry>', '<link rel="mentioned" ostatus:object-type="http://activitystrea.ms/schema/1.0/person" href="' . $r[0]['hubloc_guid'] . '"/></entry>',$slap);
-	}
 
-	logger('slap: ' . $slap, LOGGER_DATA);
+		foreach($recips as $rv) {
+			$slap = str_replace('</entry>', '<link rel="mentioned" ostatus:object-type="http://activitystrea.ms/schema/1.0/person" href="' . $rv['hubloc_guid'] . '"/></entry>',$slap);
+		}
 
+		logger('slap: ' . $slap, LOGGER_DATA);
 
-
-
-	$slap = str_replace('<entry>','<entry xmlns="http://www.w3.org/2005/Atom"
-      xmlns:thr="http://purl.org/syndication/thread/1.0"
-      xmlns:at="http://purl.org/atompub/tombstones/1.0"
-      xmlns:media="http://purl.org/syndication/atommedia"
-      xmlns:dfrn="http://purl.org/macgirvin/dfrn/1.0" 
-      xmlns:zot="http://purl.org/zot"
-      xmlns:as="http://activitystrea.ms/spec/1.0/"
-      xmlns:georss="http://www.georss.org/georss" 
-      xmlns:poco="http://portablecontacts.net/spec/1.0" 
-      xmlns:ostatus="http://ostatus.org/schema/1.0" 
-	  xmlns:statusnet="http://status.net/schema/api/1/" >',$slap);
+		$slap = str_replace('<entry>','<entry xmlns="http://www.w3.org/2005/Atom"
+	      xmlns:thr="http://purl.org/syndication/thread/1.0"
+    	  xmlns:at="http://purl.org/atompub/tombstones/1.0"
+	      xmlns:media="http://purl.org/syndication/atommedia"
+    	  xmlns:dfrn="http://purl.org/macgirvin/dfrn/1.0" 
+	      xmlns:zot="http://purl.org/zot"
+    	  xmlns:as="http://activitystrea.ms/spec/1.0/"
+	      xmlns:georss="http://www.georss.org/georss" 
+    	  xmlns:poco="http://portablecontacts.net/spec/1.0" 
+	      xmlns:ostatus="http://ostatus.org/schema/1.0" 
+		  xmlns:statusnet="http://status.net/schema/api/1/" >',$slap);
 
  
-	foreach($recips as $recip) {
-		$h = slapper($channel,$recip['hubloc_callback'],$slap);
-        $b['queued'][] = $h;
+		foreach($recips as $recip) {
+			$h = slapper($channel,$recip['hubloc_callback'],$slap);
+        	$b['queued'][] = $h;
+		}
+
 	}
+
 }
 
 
@@ -664,7 +683,7 @@ function gnusoc_follow_from_feed(&$a,&$b) {
 					'link'         => z_root() . '/connedit/' . $new_connection[0]['abook_id'],
 				));
 
-				if($default_perms) {
+				if($default_perms && $automatic) {
 					// Send back a sharing notification to them
 					$deliver = gnusoc_remote_follow($importer,$new_connection[0]);
 					if($deliver)
@@ -761,6 +780,10 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 	// if there more than one protocol is supported
 
 	if($b['success'])
+		return;
+
+	$protocol = $b['protocol'];
+	if($protocol && strtolower($protocol) !== 'ostatus')
 		return;
 
 	require_once('include/network.php');

@@ -309,14 +309,95 @@ function get_diaspora_reshare_xml($url,$recurse = 0) {
 	$x = z_fetch_url($url);
 	if(! $x['success'])
 		$x = z_fetch_url(str_replace('https://','http://',$url));
-	if(! $x['success']) {
-		logger('get_diaspora_reshare_xml: unable to fetch source url ' . $url);
-		return;
+
+	if($x['success']) {
+		// it is (hopefully) a magic envelope
+		$basedom = parse_xml_string($x['body'],false);
+		if($basedom === false) {
+			logger('no xml found');
+			return false;
+		}
+
+		$children = $basedom->children('http://salmon-protocol.org/ns/magic-env');
+		$author_link = str_replace('acct:','',base64url_decode($children->sig[0]->attributes()->key_id[0]));
+		$dom = $basedom->children(NAMESPACE_SALMON_ME);
+
+		if($dom->provenance->data)
+			$base = $dom->provenance;
+		elseif($dom->env->data)
+			$base = $dom->env;
+		elseif($dom->data)
+			$base = $dom;
+
+		if(! $base) {
+			logger('unable to locate salmon data in xml ', LOGGER_NORMAL, LOG_ERR);
+			return false;
+		}
+
+
+		// Stash the signature away for now. We have to find their key or it won't be good for anything.
+		$signature = base64url_decode($base->sig);
+
+		$data = str_replace(array(" ","\t","\r","\n"),array("","","",""),$base->data);
+
+		$type     = $base->data[0]->attributes()->type[0];
+		$encoding = $base->encoding;
+		$alg      = $base->alg;
+
+		$signed_data = $data  . '.' . base64url_encode($type,false) . '.' 
+			. base64url_encode($encoding,false) . '.' . base64url_encode($alg,false);
+
+		// decode the data
+		$data = base64url_decode($data);
+
+	   if(! $author_link) {
+			logger('Could not retrieve author URI.');
+			return false;
+		}
+
+		// Once we have the author URI, go to the web and try to find their public key
+		// (first this will look it up locally if it is in the fcontact cache)
+		// This will also convert diaspora public key from pkcs#1 to pkcs#8
+
+		logger('Fetching key for ' . $author_link );
+		$key = get_diaspora_key($author_link);
+
+		if(! $key) {
+			logger('Could not retrieve author key.', LOGGER_NORMAL, LOG_WARNING);
+			return false;
+		}
+
+		$verify = rsa_verify($signed_data,$signature,$key);
+
+		if(! $verify) {
+			logger('Message did not verify. Discarding.', LOGGER_NORMAL, LOG_ERR);
+			return false;
+		}	
+
+		logger('Message verified.');
+
+		$body = $data;
+
+	}
+	else {
+		// fetch the old-style xml
+		$url = str_replace('/fetch/post/','p',$url) . '.xml';
+
+		$x = z_fetch_url($url);
+		if(! $x['success'])
+			$x = z_fetch_url(str_replace('https://','http://',$url));
+
+		if(! $x['success']) {
+			logger('get_diaspora_reshare_xml: unable to fetch source url ' . $url);
+			return false;
+		}
+		$body = $x['body'];
 	}
 
-	logger('get_diaspora_reshare_xml: source: ' . $x['body'], LOGGER_DEBUG);
 
-	$source_xml = xml2array($x['body'],false,0,'tag');
+	logger('get_diaspora_reshare_xml: source: ' . $body, LOGGER_DEBUG);
+
+	$source_xml = xml2array($body,false,0,'tag');
 
 	if(! $source_xml) {
 		logger('get_diaspora_reshare_xml: unparseable result from ' . $url);
@@ -327,6 +408,7 @@ function get_diaspora_reshare_xml($url,$recurse = 0) {
 		if(array_key_exists('xml',$source_xml) && array_key_exists('post',$source_xml['xml'])) 
 			$source_xml = $source_xml['xml']['post'];
 	}
+
 	if($source_xml['status_message']) {
 		return $source_xml;
 	}
@@ -341,8 +423,8 @@ function get_diaspora_reshare_xml($url,$recurse = 0) {
 	if(($xml['root_diaspora_id'] || $xml['root_author']) && $xml['root_guid'] && $recurse < 15) {
 		$orig_author = notags(diaspora_get_root_author($xml));
 		$orig_guid = notags(unxmlify($xml['root_guid']));
-		$source_url = 'https://' . substr($orig_author,strpos($orig_author,'@')+1) . '/p/' . $orig_guid . '.xml';
-		$y = get_diaspora_reshare_xml($source_url,$recurse+1);
+		$source_url = 'https://' . substr($orig_author,strpos($orig_author,'@') + 1) . '/fetch/post/' . $orig_guid ;
+		$y = get_diaspora_reshare_xml($source_url,$recurse + 1);
 		if($y)
 			return $y;
 	}

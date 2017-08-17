@@ -26,7 +26,7 @@ function nodeinfo_content(&$a) {
 			$arr = [
 				'version' => '2.0',
 				'software' => [ 'name' => strtolower(Zotlabs\Lib\System::get_platform_name()),'version' => Zotlabs\Lib\System::get_project_version()],
-				'protocols' => [ 'inbound' => array('zot'), 'outbound' => array('zot') ],
+				'protocols' => [ 'zot' ],
 				'services' => [],
 				'openRegistrations' => false,
 				'usage' => [ 'users' => [ 'total' => 1, 'activeHalfyear' => 1, 'activeMonth' => 1 ],
@@ -116,7 +116,7 @@ function nodeinfo_content(&$a) {
 
 			'version' => '2.0',
 			'software' => array('name' => strtolower(Zotlabs\Lib\System::get_platform_name()),'version' => Zotlabs\Lib\System::get_project_version()),
-			'protocols' => array('inbound' => array('zot'), 'outbound' => array('zot')),
+			'protocols' => [ 'zot' ],
 			'services' => array(),
 			'openRegistrations' => ((get_config('system','register_policy') === REGISTER_OPEN) ? true : false),
 
@@ -132,18 +132,19 @@ function nodeinfo_content(&$a) {
 		);
 
 		if(in_array('diaspora',App::$plugins)) {
-			$arr['protocols']['inbound'][] = 'diaspora';
-			$arr['protocols']['outbound'][] = 'diaspora';
+			$arr['protocols'][] = 'diaspora';
 		}
 
 		if(in_array('gnusoc',App::$plugins)) {
-			$arr['protocols']['inbound'][] = 'ostatus';
-			$arr['protocols']['outbound'][] = 'ostatus';
+			$arr['protocols'][] = 'ostatus';
 		}
 
 		if(in_array('friendica',App::$plugins)) {
-			$arr['protocols']['inbound'][] = 'friendica';
-			$arr['protocols']['outbound'][] = 'friendica';
+			$arr['protocols'][] = 'friendica';
+		}
+
+		if(in_array('pubcrawl',App::$plugins)) {
+			$arr['protocols'][] = 'activitypub';
 		}
 
 		$services = [ 'atom1.0' ];

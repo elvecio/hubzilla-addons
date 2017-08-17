@@ -13,6 +13,7 @@ class Receive extends \Zotlabs\Web\Controller {
 	function post() {
 
 		$public = false;
+		$importer = null;
 
 		logger('diaspora_receive: ' . print_r(\App::$argv, true), LOGGER_DEBUG, LOG_INFO);
 

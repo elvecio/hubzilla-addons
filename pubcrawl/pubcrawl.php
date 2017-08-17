@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Name: PubCrawl (WIP; developers only - not yet functional)
+ * Name: PubCrawl
  * Description: An unapologetically non-compliant ActivityPub Protocol implemention
  * 
  */
@@ -14,17 +14,24 @@
 
 require_once('addon/pubcrawl/as.php');
 require_once('addon/pubcrawl/ActivityStreams.php');
+require_once('addon/pubcrawl/HTTPSig.php');
 
 
 function pubcrawl_load() {
 	Zotlabs\Extend\Hook::register_array('addon/pubcrawl/pubcrawl.php', [
 		'module_loaded'              => 'pubcrawl_load_module',
+		'webfinger'                  => 'pubcrawl_webfinger',
 		'channel_mod_init'           => 'pubcrawl_channel_mod_init',
 		'profile_mod_init'           => 'pubcrawl_profile_mod_init',
+		'follow_mod_init'            => 'pubcrawl_follow_mod_init',
 		'item_mod_init'              => 'pubcrawl_item_mod_init',
 		'follow_allow'               => 'pubcrawl_follow_allow',
-		'discover_channel_webfinger' => 'pubcrawl_discover_channel_webfinger'
-
+		'discover_channel_webfinger' => 'pubcrawl_discover_channel_webfinger',
+		'permissions_create'         => 'pubcrawl_permissions_create',
+		'notifier_hub'               => 'pubcrawl_notifier_process',
+		'feature_settings_post'      => 'pubcrawl_feature_settings_post',
+		'feature_settings'           => 'pubcrawl_feature_settings',
+		'queue_deliver'              => 'pubcrawl_queue_deliver'
 	]);
 }
 
@@ -46,13 +53,23 @@ function pubcrawl_follow_allow(&$b) {
 
 }
 
-function pubcrawl_discover_channel_webfinger(&$b) {
+function pubcrawl_webfinger(&$b) {
+	$b['result']['links'][] = [ 
+		'rel'  => 'self', 
+		'type' => 'application/activity+json', 
+		'href' => z_root() . '/channel/' . $b['channel']['channel_address']
+	];
+}
 
-logger('pubcrawl discover');
+
+function pubcrawl_discover_channel_webfinger(&$b) {
 
 	$url = $b['address'];
 
-logger('url: ' . $url);
+	$protocol = $b['protocol'];
+	if($protocol && strtolower($protocol) !== 'activitypub')
+		return;
+
 
 	if($url) {
 		$x = as_fetch($url);
@@ -64,8 +81,6 @@ logger('url: ' . $url);
 
 	if(! $AS->is_valid())
 		return;
-
-logger('as_data: ' . print_r($AS->data,true));
 
 	// Now find the actor and see if there is something we can follow	
 
@@ -80,112 +95,8 @@ logger('as_data: ' . print_r($AS->data,true));
 		return;
 	}
 
-	$name = $person_obj['name'];
-	if(! $name)
-		$name = t('unknown');
+	as_actor_store($person_obj);
 
-	if($person_obj['icon']) {
-		if(is_array($person_obj['icon'])) {
-			if(array_key_exists('url',$person_obj['icon']))
-				$icon = $person_obj['icon']['url'];
-			else
-				$icon = $person_obj['icon'][0]['url'];
-		}
-		else
-			$icon = $person_obj['icon'];
-	}
-
-	if($person_obj['url'] && $person_obj['url']['href'])
-		$profile = $person_obj['url']['href'];
-	else
-		$profile = $url;
-
-
-	$inbox = $person_obj['inbox'];
-
-	$collections = [];
-
-	if($inbox) {
-		$collectons['inbox'] = $inbox;
-		if($person['outbox'])
-			$collections['outbox'] = $person_obj['outbox'];
-		if($person['publicInbox'])
-			$collections['publicInbox'] = $person_obj['publicInbox'];
-		if($person['followers'])
-			$collections['followers'] = $person_obj['followers'];
-		if($person['following'])
-			$collections['following'] = $person_obj['following'];
-	}
-
-
-	// @todo fetch pubkey
-
-	$r = q("select * from xchan where xchan_hash = '%s' limit 1",
-		dbesc($person_obj['id'])
-	);
-	
-	if(! $r) {
-		// create a new record
-		$r = xchan_store_lowlevel(
-			[
-				'xchan_hash'         => $url,
-				'xchan_guid'         => $url,
-				'xchan_pubkey'       => $pubkey,
-				'xchan_addr'         => '',
-				'xchan_url'          => $profile,
-				'xchan_name'         => $name,
-				'xchan_name_date'    => datetime_convert(),
-				'xchan_network'      => 'activitypub'
-			]
-		);
-	}
-	else {
-		// update existing record
-		$r = q("update xchan set xchan_name = '%s', xchan_network = '%s', xchan_name_date = '%s' where xchan_hash = '%s'",
-			dbesc($name),
-			dbesc('activitypub'),
-			dbesc(datetime_convert()),
-			dbesc($url)
-		);
-	}
-
-	if($collections) {
-		set_xconfig($url,'activitypub','collections',$collections);
-	}
-
-	$r = q("select * from hubloc where hubloc_hash = '%s' limit 1",
-		dbesc($url)
-	);
-
-	if(! $r) {
-		$r = hubloc_store_lowlevel(
-			[
-				'hubloc_guid'     => $url,
-				'hubloc_hash'     => $url,
-				'hubloc_addr'     => '',
-				'hubloc_network'  => 'activitypub',
-				'hubloc_url'      => $url,
-				'hubloc_host'     => $hostname,
-				'hubloc_callback' => $inbox,
-				'hubloc_updated'  => datetime_convert(),
-				'hubloc_primary'  => 1
-			]
-		);
-	}
-
-	if(! $icon)
-		$icon = get_default_profile_photo(300);
-
-	$photos = import_xchan_photo($icon,$url);
-	$r = q("update xchan set xchan_photo_date = '%s', xchan_photo_l = '%s', xchan_photo_m = '%s', xchan_photo_s = '%s', xchan_photo_mimetype = '%s' where xchan_hash = '%s'",
-		dbescdate(datetime_convert('UTC','UTC',$arr['photo_updated'])),
-		dbesc($photos[0]),
-		dbesc($photos[1]),
-		dbesc($photos[2]),
-		dbesc($photos[3]),
-		dbesc($url)
-	);
-	$b['success'] = true;
 
 }
 
@@ -220,9 +131,9 @@ function pubcrawl_is_as_request() {
 		return true;
 
 	$x = getBestSupportedMimeType([
+		'application/activity+json',
 		'application/ld+json;profile="https://www.w3.org/ns/activitystreams"',
-		'application/ld+json;profile="http://www.w3.org/ns/activitystreams"',
-		'application/activity+json'
+		'application/ld+json;profile="http://www.w3.org/ns/activitystreams"'
 	]);
 
 	return(($x) ? true : false);
@@ -242,7 +153,7 @@ function pubcrawl_magic_env_allowed() {
 function pubcrawl_salmon_sign($data,$channel) {
 
   	$data      = base64url_encode($data, false); // do not strip padding
-    $data_type = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
+    $data_type = 'application/activity+json';
     $encoding  = 'base64url';
     $algorithm = 'RSA-SHA256';
     $keyhash   = base64url_encode(hash('sha256',salmon_key($channel['channel_pubkey'])),true);
@@ -287,10 +198,223 @@ function pubcrawl_channel_mod_init($x) {
 
 		}
 		else {
-			header('Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"');
-			json_return_and_die($x);
+			$headers = [];
+			$headers['Content-Type'] = 'application/activity+json' ;
+			$ret = json_encode($x);
+			$hash = HTTPSig::generate_digest($ret,false);
+			$headers['Digest'] = 'SHA-256=' . $hash;  
+			HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . argv(1),true);
+			echo $ret;
+			killme();
 		}
 	}
+}
+
+function pubcrawl_notifier_process(&$arr) {
+
+	if($arr['hub']['hubloc_network'] !== 'activitypub')
+		return;
+
+	logger('upstream: ' . intval($arr['upstream']));
+
+	logger('notifier_array: ' . print_r($arr,true), LOGGER_ALL, LOG_INFO);
+
+	// allow this to be set per message
+
+	if($arr['mail']) {
+		logger('Cannot send mail to activitypub.');
+		return;
+	}
+
+	if(array_key_exists('target_item',$arr) && is_array($arr['target_item'])) {
+
+		if(intval($arr['target_item']['item_obscured'])) {
+			logger('Cannot send raw data as an activitypub activity.');
+			return;
+		}
+
+		if(strpos($arr['target_item']['postopts'],'nopub') !== false) {
+			return;
+		}
+	}
+
+	$allowed = get_pconfig($arr['channel']['channel_id'],'system','activitypub_allowed');
+
+	if(! intval($allowed)) {
+		logger('pubcrawl: disallowed for channel ' . $arr['channel']['channel_name']);
+		return;
+	}
+
+	if($arr['location'])
+		return;
+
+	$target_item = $arr['target_item'];
+
+	$prv_recips = $arr['env_recips'];
+
+	$msg = array_merge(['@context' => [
+		'https://www.w3.org/ns/activitystreams',
+		[ 'me' => 'http://salmon-protocol.org/ns/magic-env' ],
+		[ 'zot' => 'http://purl.org/zot/protocol' ]
+	]], asencode_activity($target_item));
+	
+
+	$jmsg = json_encode($msg);
+
+	if($prv_recips) {
+		$hashes = array();
+
+		// re-explode the recipients, but only for this hub/pod
+
+		foreach($prv_recips as $recip)
+			$hashes[] = "'" . $recip['hash'] . "'";
+
+		$r = q("select * from xchan left join hubloc on xchan_hash = hubloc_hash where hubloc_url = '%s'
+			and xchan_hash in (" . implode(',', $hashes) . ") and xchan_network = 'activitypub' ",
+			dbesc($arr['hub']['hubloc_url'])
+		);
+
+		if(! $r) {
+			logger('activitypub_process_outbound: no recipients');
+			return;
+		}
+
+		foreach($r as $contact) {
+
+			// is $contact connected with this channel - and if the channel is cloned, also on this hub?
+			$single = deliverable_singleton($arr['channel']['channel_id'],$contact);
+
+			if(! $arr['normal_mode'])
+				continue;
+
+			if($single) {
+				$qi = pubcrawl_queue_message($jmsg,$arr['channel'],$contact,$target_item['mid']);
+				if($qi)
+					$arr['queued'][] = $qi;
+			}
+			continue;
+		}
+
+	}
+	else {
+
+		// public message
+
+		$r = q("select * from xchan left join hubloc on xchan_hash = hubloc_hash where hubloc_url = '%s' and xchan_network = 'activitypub' ",
+			dbesc($arr['hub']['hubloc_url'])
+		);
+
+		if(! $r) {
+			logger('activitypub_process_outbound: no recipients');
+			return;
+		}
+
+		foreach($r as $contact) {
+
+			$single = deliverable_singleton($arr['channel']['channel_id'],$contact);
+
+			if($single) {
+				$qi = pubcrawl_queue_message($jmsg,$arr['channel'],$contact,$target_item['mid']);
+				if($qi)
+					$arr['queued'][] = $qi;
+			}
+		}	
+	}
+	
+	return;
+
+}
+
+
+function pubcrawl_queue_message($msg,$sender,$recip,$message_id = '') {
+
+
+    $allowed = get_pconfig($sender['channel_id'],'system','activitypub_allowed',1);
+
+    if(! intval($allowed)) {
+        return false;
+    }
+
+//    if($public_batch)
+  //      $dest_url = $recip['hubloc_callback'] . '/public';
+//    else
+        
+	$dest_url = $recip['hubloc_callback'];
+
+    logger('URL: ' . $dest_url, LOGGER_DEBUG);
+
+    if(intval(get_config('system','activitypub_test')) || intval(get_pconfig($sender['channel_id'],'system','activitypub_test'))) {
+        logger('test mode - delivery disabled');
+        return false;
+    }
+
+    $hash = random_string();
+
+    logger('queue: ' . $hash . ' ' . $dest_url, LOGGER_DEBUG);
+	queue_insert(array(
+        'hash'       => $hash,
+        'account_id' => $sender['channel_account_id'],
+        'channel_id' => $sender['channel_id'],
+        'driver'     => 'pubcrawl',
+        'posturl'    => $dest_url,
+        'notify'     => '',
+        'msg'        => $msg
+    ));
+
+    if($message_id && (! get_config('system','disable_dreport'))) {
+        q("insert into dreport ( dreport_mid, dreport_site, dreport_recip, dreport_result, dreport_time, dreport_xchan, dreport_queue ) values ( '%s','%s','%s','%s','%s','%s','%s' ) ",
+            dbesc($message_id),
+            dbesc($dest_url),
+            dbesc($dest_url),
+            dbesc('queued'),
+            dbesc(datetime_convert()),
+            dbesc($sender['channel_hash']),
+            dbesc($hash)
+        );
+    }
+
+    return $hash;
+
+}
+
+
+function pubcrawl_permissions_create(&$x) {
+
+	// send a follow activity to the followee's inbox
+
+	if($x['recipient']['xchan_network'] !== 'activitypub') {
+		return;
+	}
+
+	$msg = array_merge(['@context' => [
+			'https://www.w3.org/ns/activitystreams',
+			[ 'me' => 'http://salmon-protocol.org/ns/magic-env' ],
+			[ 'zot' => 'http://purl.org/zot/protocol' ]
+		]], 
+		[
+			'id' => z_root() . '/follow/' . $x['recipient']['abook_id'],
+			'type' => 'Follow',
+			'actor' => asencode_person($x['sender']),
+			'object' => asencode_person($x['recipient'])
+	]);
+
+	$jmsg = json_encode($msg);
+
+	// is $contact connected with this channel - and if the channel is cloned, also on this hub?
+	$single = deliverable_singleton($x['sender']['channel_id'],$x['recipient']);
+
+	$h = q("select * from hubloc where hubloc_hash = '%s' limit 1",
+		dbesc($x['recipient']['xchan_hash'])
+	);
+
+	if($single && $h) {
+		$qi = pubcrawl_queue_message($jmsg,$x['sender'],$h[0]);
+		if($qi)
+			$x['deliveries'] = $qi;
+	}
+		
+	$x['success'] = true;
+
 }
 
 
@@ -314,7 +438,7 @@ function pubcrawl_profile_mod_init($x) {
 			json_return_and_die($x);
 		}
 		else {
-			header('Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"');
+			header('Content-Type: application/activity+json');
 			json_return_and_die($x);
 		}
 	}
@@ -361,8 +485,139 @@ function pubcrawl_item_mod_init($x) {
 			[ 'zot' => 'http://purl.org/zot/protocol' ]
 			]], asencode_item($items[0]));
 
-		header('Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"');
+		header('Content-Type: application/activity+json');
 		json_return_and_die($x);
 
 	}
 }
+
+function pubcrawl_follow_mod_init($x) {
+
+	if(pubcrawl_is_as_request() && argc() == 2) {
+		$abook_id = intval(argv(1));
+		if(! $abook_id)
+			return;
+		$r = q("select * from abook left join xchan on abook_xchan = xchan_hash where abook_id = %d",
+			intval($abook_id)
+		);
+		if (! $r)
+			return;
+
+		$chan = channelx_by_n($r[0]['abook_channel']);
+
+		$x = array_merge(['@context' => [
+				'https://www.w3.org/ns/activitystreams',
+				[ 'me' => 'http://salmon-protocol.org/ns/magic-env' ],
+				[ 'zot' => 'http://purl.org/zot/protocol' ]
+			]], 
+			[
+				'id' => z_root() . '/follow/' . $r[0]['abook_id'],
+				'type' => 'Follow',
+				'actor' => asencode_person($chan),
+				'object' => asencode_person($r[0])
+		]);
+				
+		if(pubcrawl_magic_env_allowed()) {
+			$x = pubcrawl_salmon_sign(json_encode($x),$chan);
+			header('Content-Type: application/magic-envelope+json');
+			json_return_and_die($x);
+		}
+		else {
+			header('Content-Type: application/activity+json');
+			json_return_and_die($x);
+		}
+	}
+}
+
+
+function pubcrawl_queue_deliver(&$b) {
+
+	$outq = $b['outq'];
+	$base = $b['base'];
+	$immediate = $b['immediate'];
+
+
+	if($outq['outq_driver'] === 'pubcrawl') {
+		$b['handled'] = true;
+
+		$channel = channelx_by_n($outq['outq_channel']);
+
+		$retries = 0;
+
+		$headers = [];
+		$headers['Content-Type'] = 'application/activity+json';
+		$ret = $outq['outq_msg'];
+		$hash = HTTPSig::generate_digest($ret,false);
+		$headers['Digest'] = 'SHA-256=' . $hash;  
+		$xhead = HTTPSig::create_sig('',$headers,$channel['channel_prvkey'],z_root() . '/channel/' . argv(1),false);
+	
+		$result = z_post_url($outq['outq_posturl'],$outq['outq_msg'],$retries,[ 'headers' => $xhead ]);
+
+		if($result['success'] && $result['return_code'] < 300) {
+			logger('deliver: queue post success to ' . $outq['outq_posturl'], LOGGER_DEBUG);
+			if($base) {
+				q("update site set site_update = '%s', site_dead = 0 where site_url = '%s' ",
+					dbesc(datetime_convert()),
+					dbesc($base)
+				);
+			}
+			q("update dreport set dreport_result = '%s', dreport_time = '%s' where dreport_queue = '%s'",
+				dbesc('accepted for delivery'),
+				dbesc(datetime_convert()),
+				dbesc($outq['outq_hash'])
+			);
+			remove_queue_item($outq['outq_hash']);
+
+			// server is responding - see if anything else is going to this destination and is piled up 
+			// and try to send some more. We're relying on the fact that do_delivery() results in an 
+			// immediate delivery otherwise we could get into a queue loop. 
+
+			if(! $immediate) {
+				$x = q("select outq_hash from outq where outq_posturl = '%s' and outq_delivered = 0",
+					dbesc($outq['outq_posturl'])
+				);
+
+				$piled_up = array();
+				if($x) {
+					foreach($x as $xx) {
+						 $piled_up[] = $xx['outq_hash'];
+					}
+				}
+				if($piled_up) {
+					do_delivery($piled_up);
+				}
+			}
+		}
+	}
+}
+
+function pubcrawl_feature_settings_post(&$b) {
+
+	if($_POST['pubcrawl-submit']) {
+		set_pconfig(local_channel(),'system','activitypub_allowed',intval($_POST['activitypub_allowed']));
+		
+		info( t('ActivityPub Protocol Settings updated.') . EOL);
+	}
+}
+
+
+function pubcrawl_feature_settings(&$s) {
+
+	$ap_allowed = get_pconfig(local_channel(),'system','activitypub_allowed');
+
+	$sc = '<div>' . t('The ActivityPub protocol does not support location independence. Connections you make within that network may be unreachable from alternate channel locations.') . '</div><br>';
+
+	$sc .= replace_macros(get_markup_template('field_checkbox.tpl'), array(
+		'$field'	=> array('activitypub_allowed', t('Enable the ActivityPub protocol for this channel'), $ap_allowed, '', $yes_no),
+	));
+
+
+	$s .= replace_macros(get_markup_template('generic_addon_settings.tpl'), array(
+		'$addon' 	=> array('pubcrawl', t('ActivityPub Protocol Settings'), '', t('Submit')),
+		'$content'	=> $sc
+	));
+
+	return;
+
+}
+

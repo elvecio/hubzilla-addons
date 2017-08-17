@@ -38,7 +38,7 @@ class Activity extends \Zotlabs\Web\Controller {
 				[ 'zot' => 'http://purl.org/zot/protocol' ]
 				]], asencode_activity($items[0]));
 
-			header('Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"');
+			header('Content-Type: application/activity+json');
 			json_return_and_die($x);
 
 		}

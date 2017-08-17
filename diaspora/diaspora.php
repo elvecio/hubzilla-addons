@@ -487,6 +487,11 @@ function diaspora_discover(&$b) {
 
 	$webbie = $b['address'];
 
+	$protocol = $b['protocol'];
+	if($protocol && strtolower($protocol) !== 'diaspora')
+		return;
+
+
 	$result = array();
 	$network = null;
 	$diaspora = false;
@@ -494,24 +499,60 @@ function diaspora_discover(&$b) {
 	$diaspora_base = '';
 	$diaspora_guid = '';
 	$diaspora_key = '';
+	$guid = '';
+
 	$dfrn = false;
 
-	$x = old_webfinger($webbie);			
+	$x = $b['webfinger'];
+
+	if($x && array_key_exists('links',$x) && $x['links']) {
+		foreach($x['links'] as $link) {
+			if(array_key_exists('rel',$link)) {
+
+				if($link['rel'] === NAMESPACE_DFRN)
+					$dfrn = $link['href'];				
+
+				if($link['rel'] === 'http://joindiaspora.com/seed_location') {
+					$diaspora_base = $link['href'];
+					$diaspora = true;
+				}
+				if($link['rel'] === 'http://joindiaspora.com/guid') {
+					$diaspora_guid = $link['href'];
+					$diaspora = true;
+				}
+				if($link['rel'] === 'diaspora-public-key') {
+					$diaspora_key = base64_decode($link['href']);
+					if(strstr($diaspora_key,'RSA '))
+						$pubkey = rsatopem($diaspora_key);
+					else
+						$pubkey = $diaspora_key;
+					$diaspora = true;
+				}
+				if($link['rel'] === 'http://microformats.org/profile/hcard')
+					$hcard = $link['href'];
+				if($link['rel'] === 'http://webfinger.net/rel/profile-page')
+					$profile = $link['href'];
+			}
+		}
+	}
+
+	if($diaspora && $diaspora_base) {
+		$x = false;
+	}
+
+	if(! $x) {
+		$x = old_webfinger($webbie);
+	}
+
 	if($x) {
 		logger('old_webfinger: ' . print_r($x,true));
 		foreach($x as $link) {
 			if($link['@attributes']['rel'] === NAMESPACE_DFRN)
 				$dfrn = unamp($link['@attributes']['href']);				
-			if($link['@attributes']['rel'] === 'salmon')
-				$notify = unamp($link['@attributes']['href']);
- 			if($link['@attributes']['rel'] === NAMESPACE_FEED)
-				$poll = unamp($link['@attributes']['href']);
 			if($link['@attributes']['rel'] === 'http://microformats.org/profile/hcard')
 				$hcard = unamp($link['@attributes']['href']);
 			if($link['@attributes']['rel'] === 'http://webfinger.net/rel/profile-page')
 				$profile = unamp($link['@attributes']['href']);
-			if($link['@attributes']['rel'] === 'http://portablecontacts.net/spec/1.0')
-				$poco = unamp($link['@attributes']['href']);
 			if($link['@attributes']['rel'] === 'http://joindiaspora.com/seed_location') {
 				$diaspora_base = unamp($link['@attributes']['href']);
 				$diaspora = true;
@@ -529,170 +570,104 @@ function diaspora_discover(&$b) {
 				$diaspora = true;
 			}
 		}
+	}
 
-		if($diaspora && $diaspora_base && $diaspora_guid) {
+	if($diaspora && $diaspora_base) {
+
+		if($diaspora_guid)
 			$guid = $diaspora_guid;
-			$diaspora_base = trim($diaspora_base,'/');
 
-			$notify = $diaspora_base . '/receive';
+		$diaspora_base = trim($diaspora_base,'/');
 
-			if(strpos($webbie,'@')) {
-				$addr = str_replace('acct:', '', $webbie);
-				$hostname = substr($webbie,strpos($webbie,'@')+1);
-			}
-			$network = 'diaspora';
-			// until we get a dfrn layer, we'll use diaspora protocols for Friendica,
-			// but give it a different network so we can go back and fix these when we get proper support. 
-			// It really should be just 'friendica' but we also want to distinguish
-			// between Friendica sites that we can use D* protocols with and those we can't.
-			// Some Friendica sites will have Diaspora disabled. 
-			if($dfrn)
-				$network = 'friendica-over-diaspora';
-			if($hcard) {
-				$vcard = scrape_vcard($hcard);
-				$vcard['nick'] = substr($webbie,0,strpos($webbie,'@'));
-				if(! $vcard['fn'])
-					$vcard['fn'] = $webbie;
-			} 
+		$notify = $diaspora_base . '/receive';
 
-			$r = q("select * from xchan where xchan_hash = '%s' limit 1",
+		if(strpos($webbie,'@')) {
+			$addr = str_replace('acct:', '', $webbie);
+			$hostname = substr($webbie,strpos($webbie,'@')+1);
+		}
+		$network = 'diaspora';
+		// until we get a dfrn layer, we'll use diaspora protocols for Friendica,
+		// but give it a different network so we can go back and fix these when we get proper support. 
+		// It really should be just 'friendica' but we also want to distinguish
+		// between Friendica sites that we can use D* protocols with and those we can't.
+		// Some Friendica sites will have Diaspora disabled. 
+		if($dfrn)
+			$network = 'friendica-over-diaspora';
+		if($hcard) {
+			$vcard = scrape_vcard($hcard);
+			$vcard['nick'] = substr($webbie,0,strpos($webbie,'@'));
+			if(! $vcard['fn'])
+				$vcard['fn'] = $webbie;
+			if(($vcard['uid']) && (! $diaspora_guid))
+				$diaspora_guid = $guid = $vcard['uid'];
+		} 
+
+		$r = q("select * from xchan where xchan_hash = '%s' limit 1",
+			dbesc($addr)
+		);
+
+		/**
+		 *
+		 * Diaspora communications are notoriously unreliable and receiving profile update messages (indeed any messages) 
+		 * are pretty much random luck. We'll check the timestamp of the xchan_name_date at a higher level and refresh
+		 * this record once a month; because if you miss a profile update message and they update their profile photo or name 
+		 * you're otherwise stuck with stale info until they change their profile again - which could be years from now. 
+		 *
+		 */  			
+
+		if($r) {
+			$r = q("update xchan set xchan_name = '%s', xchan_network = '%s', xchan_name_date = '%s' where xchan_hash = '%s'",
+				dbesc($vcard['fn']),
+				dbesc($network),
+				dbesc(datetime_convert()),
 				dbesc($addr)
 			);
-
-			/**
-			 *
-			 * Diaspora communications are notoriously unreliable and receiving profile update messages (indeed any messages) 
-			 * are pretty much random luck. We'll check the timestamp of the xchan_name_date at a higher level and refresh
-			 * this record once a month; because if you miss a profile update message and they update their profile photo or name 
-			 * you're otherwise stuck with stale info until they change their profile again - which could be years from now. 
-			 *
-			 */  			
-
-			if($r) {
-				$r = q("update xchan set xchan_name = '%s', xchan_network = '%s', xchan_name_date = '%s' where xchan_hash = '%s'",
-					dbesc($vcard['fn']),
-					dbesc($network),
-					dbesc(datetime_convert()),
-					dbesc($addr)
-				);
-			}
-			else {
-				$r = xchan_store_lowlevel(
-					[
-						'xchan_hash'         => $addr,
-						'xchan_guid'         => $guid,
-						'xchan_pubkey'       => $pubkey,
-						'xchan_addr'         => $addr,
-						'xchan_url'          => $profile,
-						'xchan_name'         => $vcard['fn'],
-						'xchan_name_date'    => datetime_convert(),
-						'xchan_network'      => $network
-					]
-				);
-			}
-
-			$r = q("select * from hubloc where hubloc_hash = '%s' limit 1",
-				dbesc($webbie)
+		}
+		else {
+			$r = xchan_store_lowlevel(
+				[
+					'xchan_hash'         => $addr,
+					'xchan_guid'         => $guid,
+					'xchan_pubkey'       => $pubkey,
+					'xchan_addr'         => $addr,
+					'xchan_url'          => $profile,
+					'xchan_name'         => $vcard['fn'],
+					'xchan_name_date'    => datetime_convert(),
+					'xchan_network'      => $network
+				]
 			);
-
-			if(! $r) {
-				$r = hubloc_store_lowlevel(
-					[
-						'hubloc_guid'     => $guid,
-						'hubloc_hash'     => $addr,
-						'hubloc_addr'     => $addr,
-						'hubloc_network'  => $network,
-						'hubloc_url'      => trim($diaspora_base,'/'),
-						'hubloc_host'     => $hostname,
-						'hubloc_callback' => $notify,
-						'hubloc_updated'  => datetime_convert(),
-						'hubloc_primary'  => 1
-					]
-				);
-			}
-
-			$photos = import_xchan_photo($vcard['photo'],$addr);
-			$r = q("update xchan set xchan_photo_date = '%s', xchan_photo_l = '%s', xchan_photo_m = '%s', xchan_photo_s = '%s', xchan_photo_mimetype = '%s' where xchan_hash = '%s'",
-				dbescdate(datetime_convert('UTC','UTC',$arr['photo_updated'])),
-				dbesc($photos[0]),
-				dbesc($photos[1]),
-				dbesc($photos[2]),
-				dbesc($photos[3]),
-				dbesc($addr)
-			);
-			$b['success'] = true;
 		}
 
+		$r = q("select * from hubloc where hubloc_hash = '%s' limit 1",
+			dbesc($webbie)
+		);
 
-/*
-	$vcard['fn'] = notags($vcard['fn']);
-	$vcard['nick'] = str_replace(' ','',notags($vcard['nick']));
+		if(! $r) {
+			$r = hubloc_store_lowlevel(
+				[
+					'hubloc_guid'     => $guid,
+					'hubloc_hash'     => $addr,
+					'hubloc_addr'     => $addr,
+					'hubloc_network'  => $network,
+					'hubloc_url'      => trim($diaspora_base,'/'),
+					'hubloc_host'     => $hostname,
+					'hubloc_callback' => $notify,
+					'hubloc_updated'  => datetime_convert(),
+					'hubloc_primary'  => 1
+				]
+			);
+		}
 
-	$result['name'] = $vcard['fn'];
-	$result['nick'] = $vcard['nick'];
-	$result['guid'] = $guid;
-	$result['url'] = $profile;
-	$result['hostname'] = $hostname;
-	$result['addr'] = $addr;
-	$result['batch'] = $batch;
-	$result['notify'] = $notify;
-	$result['poll'] = $poll;
-	$result['request'] = $request;
-	$result['confirm'] = $confirm;
-	$result['poco'] = $poco;
-	$result['photo'] = $vcard['photo'];
-	$result['priority'] = $priority;
-	$result['network'] = $network;
-	$result['alias'] = $alias;
-	$result['pubkey'] = $pubkey;
-
-	logger('probe_url: ' . print_r($result,true), LOGGER_DEBUG);
-
-	return $result;
-
-*/
-
-/* Sample Diaspora result.
-
-Array
-(
-	[name] => Mike Macgirvin
-	[nick] => macgirvin
-	[guid] => a9174a618f8d269a
-	[url] => https://joindiaspora.com/u/macgirvin
-	[hostname] => joindiaspora.com
-	[addr] => macgirvin@joindiaspora.com
-	[batch] => 
-	[notify] => https://joindiaspora.com/receive
-	[poll] => https://joindiaspora.com/public/macgirvin.atom
-	[request] => 
-	[confirm] => 
-	[poco] => 
-	[photo] => https://joindiaspora.s3.amazonaws.com/uploads/images/thumb_large_fec4e6eef13ae5e56207.jpg
-	[priority] => 
-	[network] => diaspora
-	[alias] => 
-	[pubkey] => -----BEGIN PUBLIC KEY-----
-MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAtihtyIuRDWkDpCA+I1UaQ
-jI4S7k625+A7EEJm+pL2ZVSJxeCKiFeEgHBQENjLMNNm8l8F6blxgQqE6ZJ9Spa7f
-tlaXYTRCrfxKzh02L3hR7sNA+JS/nXJaUAIo+IwpIEspmcIRbD9GB7Wv/rr+M28uH
-31EeYyDz8QL6InU/bJmnCdFvmEMBQxJOw1ih9tQp7UNJAbUMCje0WYFzBz7sfcaHL
-OyYcCOqOCBLdGucUoJzTQ9iDBVzB8j1r1JkIHoEb2moUoKUp+tkCylNfd/3IVELF9
-7w1Qjmit3m50OrJk2DQOXvCW9KQxaQNdpRPSwhvemIt98zXSeyZ1q/YjjOwG0DWDq
-AF8aLj3/oQaZndTPy/6tMiZogKaijoxj8xFLuPYDTw5VpKquriVC0z8oxyRbv4t9v
-8JZZ9BXqzmayvY3xZGGp8NulrfjW+me2bKh0/df1aHaBwpZdDTXQ6kqAiS2FfsuPN
-vg57fhfHbL1yJ4oDbNNNeI0kJTGchXqerr8C20khU/cQ2Xt31VyEZtnTB665Ceugv
-kp3t2qd8UpAVKl430S5Quqx2ymfUIdxdW08CEjnoRNEL3aOWOXfbf4gSVaXmPCR4i
-LSIeXnd14lQYK/uxW/8cTFjcmddsKxeXysoQxbSa9VdDK+KkpZdgYXYrTTofXs6v+
-4afAEhRaaY+MCAwEAAQ==
------END PUBLIC KEY-----
-
-)
-*/
-
-
-
-
+		$photos = import_xchan_photo($vcard['photo'],$addr);
+		$r = q("update xchan set xchan_photo_date = '%s', xchan_photo_l = '%s', xchan_photo_m = '%s', xchan_photo_s = '%s', xchan_photo_mimetype = '%s' where xchan_hash = '%s'",
+			dbescdate(datetime_convert('UTC','UTC',$arr['photo_updated'])),
+			dbesc($photos[0]),
+			dbesc($photos[1]),
+			dbesc($photos[2]),
+			dbesc($photos[3]),
+			dbesc($addr)
+		);
+		$b['success'] = true;
 	}
 }
 
@@ -999,7 +974,6 @@ function diaspora_markdown_to_bb_init(&$s) {
 
 
 }
-
 
 
 function diaspora_bb_to_markdown_bb(&$x) {
