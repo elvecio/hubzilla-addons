@@ -50,7 +50,7 @@ function find_diaspora_person_by_handle($handle) {
 	if($r) {
 		$person = $r[0];
 		logger('find_diaspora_person_by handle: in cache ' . print_r($r,true), LOGGER_DATA, LOG_DEBUG);
-		if($person['xchan_name_date'] < datetime_convert('UTC','UTC', 'now - 1 month')) {
+		if(($person['xchan_name_date'] < datetime_convert('UTC','UTC', 'now - 1 month')) || $person['xchan_pubkey'] === '') {
 			logger('Updating Diaspora cached record for ' . $handle);
 			$refresh = true;
 		}
@@ -381,7 +381,7 @@ function get_diaspora_reshare_xml($url,$recurse = 0) {
 	}
 	else {
 		// fetch the old-style xml
-		$url = str_replace('/fetch/post/','p',$url) . '.xml';
+		$url = str_replace('/fetch/post/','/p/',$url) . '.xml';
 
 		$x = z_fetch_url($url);
 		if(! $x['success'])

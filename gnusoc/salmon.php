@@ -194,6 +194,11 @@ function salmon_post(&$a) {
 
 	$xchan = $r[0];
 
+	if(! (check_siteallowed($xchan['xchan_guid']) && check_channelallowed($xchan['xchan_hash']))) {
+		logger('site or channel is blocked.');
+		http_status_exit(403);
+	}
+
 
 	/*
 	 *

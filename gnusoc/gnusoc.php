@@ -501,7 +501,7 @@ function gnusoc_notifier_process(&$a,&$b) {
 	// however they need to be registered on this site (have a valid xchan and hubloc) from some prior
 	// activity and also be OStatus. 
 
-	if((is_array('term',$b['target_item'])) && count($b['target_item']['term'])) {
+	if((array_key_exists('term',$b['target_item'])) && is_array($b['target_item']['term']) && count($b['target_item']['term'])) {
 		foreach($b['target_item']['term'] as $t) {
 			if(intval($t['ttype']) != TERM_MENTION)
 				continue;

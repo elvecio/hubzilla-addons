@@ -536,7 +536,7 @@ function diaspora_discover(&$b) {
 		}
 	}
 
-	if($diaspora && $diaspora_base) {
+	if(! ($diaspora && $diaspora_base)) {
 		$x = false;
 	}
 
@@ -547,27 +547,30 @@ function diaspora_discover(&$b) {
 	if($x) {
 		logger('old_webfinger: ' . print_r($x,true));
 		foreach($x as $link) {
-			if($link['@attributes']['rel'] === NAMESPACE_DFRN)
-				$dfrn = unamp($link['@attributes']['href']);				
-			if($link['@attributes']['rel'] === 'http://microformats.org/profile/hcard')
-				$hcard = unamp($link['@attributes']['href']);
-			if($link['@attributes']['rel'] === 'http://webfinger.net/rel/profile-page')
-				$profile = unamp($link['@attributes']['href']);
-			if($link['@attributes']['rel'] === 'http://joindiaspora.com/seed_location') {
-				$diaspora_base = unamp($link['@attributes']['href']);
-				$diaspora = true;
-			}
-			if($link['@attributes']['rel'] === 'http://joindiaspora.com/guid') {
-				$diaspora_guid = unamp($link['@attributes']['href']);
-				$diaspora = true;
-			}
-			if($link['@attributes']['rel'] === 'diaspora-public-key') {
-				$diaspora_key = base64_decode(unamp($link['@attributes']['href']));
-				if(strstr($diaspora_key,'RSA '))
-					$pubkey = rsatopem($diaspora_key);
-				else
-					$pubkey = $diaspora_key;
-				$diaspora = true;
+			if(is_array($link)) {
+				if($link['@attributes']['rel'] === NAMESPACE_DFRN)
+					$dfrn = unamp($link['@attributes']['href']);				
+				if($link['@attributes']['rel'] === 'http://microformats.org/profile/hcard')
+					$hcard = unamp($link['@attributes']['href']);
+				if($link['@attributes']['rel'] === 'http://webfinger.net/rel/profile-page')
+					$profile = unamp($link['@attributes']['href']);
+				if($link['@attributes']['rel'] === 'http://joindiaspora.com/seed_location') {
+					$diaspora_base = unamp($link['@attributes']['href']);
+					$diaspora = true;
+				}
+			
+				if($link['@attributes']['rel'] === 'http://joindiaspora.com/guid') {
+					$diaspora_guid = unamp($link['@attributes']['href']);
+					$diaspora = true;
+				}
+				if($link['@attributes']['rel'] === 'diaspora-public-key') {
+					$diaspora_key = base64_decode(unamp($link['@attributes']['href']));
+					if(strstr($diaspora_key,'RSA '))
+						$pubkey = rsatopem($diaspora_key);
+					else
+						$pubkey = $diaspora_key;
+					$diaspora = true;
+				}
 			}
 		}
 	}
@@ -600,6 +603,15 @@ function diaspora_discover(&$b) {
 				$vcard['fn'] = $webbie;
 			if(($vcard['uid']) && (! $diaspora_guid))
 				$diaspora_guid = $guid = $vcard['uid'];
+
+			if($vcard['public_key']) {
+				$diaspora_key = $vcard['public_key'];
+				if(strstr($diaspora_key,'RSA '))
+					$pubkey = rsatopem($diaspora_key);
+				else
+					$pubkey = $diaspora_key;
+			}
+
 		} 
 
 		$r = q("select * from xchan where xchan_hash = '%s' limit 1",
@@ -616,10 +628,11 @@ function diaspora_discover(&$b) {
 		 */  			
 
 		if($r) {
-			$r = q("update xchan set xchan_name = '%s', xchan_network = '%s', xchan_name_date = '%s' where xchan_hash = '%s'",
+			$r = q("update xchan set xchan_name = '%s', xchan_network = '%s', xchan_name_date = '%s', xchan_pubkey = '%s' where xchan_hash = '%s'",
 				dbesc($vcard['fn']),
 				dbesc($network),
 				dbesc(datetime_convert()),
+				dbesc($pubkey),
 				dbesc($addr)
 			);
 		}

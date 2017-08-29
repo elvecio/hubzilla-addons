@@ -175,6 +175,11 @@ function diaspora_is_blacklisted($s) {
 		return true;
 	}
 
+	if(! check_channelallowed($s)) {
+		logger('blacklisted channel: ' . $s);
+		return true;
+	}
+
 	return false;
 }
 
@@ -292,6 +297,10 @@ function diaspora_decode($importer,$xml,$format) {
 
 			logger('decrypted: ' . $decrypted, LOGGER_DATA);
 			$idom = parse_xml_string($decrypted,false);
+			if($idom === false) {
+				logger('failed to parse decrypted content');				
+				http_status_exit(400);
+			}
 
 			$inner_iv = base64_decode($idom->iv);
 			$inner_aes_key = base64_decode($idom->aes_key);

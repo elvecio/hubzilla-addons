@@ -57,23 +57,19 @@ class Outbox extends \Zotlabs\Web\Controller {
 
 	        $x = array_merge(['@context' => [
     	        'https://www.w3.org/ns/activitystreams',
-        	    [ 'me' => 'http://salmon-protocol.org/ns/magic-env' ],
-				[ 'zot' => 'http://purl.org/zot/protocol' ]
+				'https://w3id.org/security/v1'
             	]], asencode_item_collection($items, \App::$query_string, 'OrderedCollection'));
 
-	        if(pubcrawl_magic_env_allowed()) {
-    	        $x = pubcrawl_salmon_sign(json_encode($x),$chan);
-        	    header('Content-Type: application/magic-envelope+json');
-            	json_return_and_die($x);
 
-        	}
-	        else {
-    	        header('Content-Type: application/activity+json');
-        	    $ret = json_encode($x);
-            	\HTTPSig::generate_digest($ret);
-	            echo $ret;
-    	        killme();
-        	}
+			$headers = [];
+			$headers['Content-Type'] = 'application/activity+json' ;
+			$ret = json_encode($x);
+			$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
+			$headers['Digest'] = 'SHA-256=' . $hash;  
+			\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
+			echo $ret;
+			killme();
+
     	}
 
 	}

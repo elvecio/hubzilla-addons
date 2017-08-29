@@ -17,7 +17,6 @@ class Inbox extends \Zotlabs\Web\Controller {
 		$is_public = false;
 
 		if(argv(1) === '[public]') {
-//			$channel = (($sys_disabled) ? null : get_sys_channel());
 			$is_public = true;
 		}
 		else {
@@ -31,7 +30,9 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 		logger('inbox_activity: ' . jindent($data), LOGGER_DATA);
 
-		$AS = new \ActivityStreams($data);
+		$AS = new \Zotlabs\Lib\ActivityStreams($data);
+
+		//		logger('debug: ' . $AS->debug());
 
 		if(! $AS->is_valid())
 			return;
@@ -40,24 +41,29 @@ class Inbox extends \Zotlabs\Web\Controller {
 			as_actor_store($AS->actor['id'],$AS->actor);
 
 
+
 		$observer_hash = $AS->actor['id'];
 		if(! $observer_hash)
 			return;
 
 		if($is_public) {
+
 			$channels = q("SELECT * from channel where channel_id in ( SELECT abook_channel from abook left join xchan on abook_xchan = xchan_hash WHERE xchan_network = 'activitypub' and xchan_addr = '%s' ) and channel_removed = 0 ",
-		        dbesc($observer_hash);
+		        dbesc($observer_hash)
 			);
 			if($channels === false)
 				$channels = [];
 			if(! $sys_disabled)
 				$channels[] = get_sys_channel();
 
-			// look for channels with send_stream = PERMS_PUBLIC
+			if(in_array(ACTIVITY_PUBLIC_INBOX,$AS->recips)) {
 
-			$r = q("select * from channel where channel_id in (select uid from pconfig where cat = 'perm_limits' and k = 'send_stream' and v = 1 ) and channel_removed = 0 ");
-			if($r) {
-				$channels = array_merge($channels,$r);
+				// look for channels with send_stream = PERMS_PUBLIC
+
+				$r = q("select * from channel where channel_id in (select uid from pconfig where cat = 'perm_limits' and k = 'send_stream' and v = 1 ) and channel_removed = 0 ");
+				if($r) {
+					$channels = array_merge($channels,$r);
+				}
 			}
 
 		}
@@ -92,18 +98,25 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 			switch($AS->type) {
 				case 'Create':
+				case 'Update':
 					as_create_action($channel,$observer_hash,$AS);
 					continue;
 				case 'Like':
 				case 'Dislike':
 					as_like_action($channel,$observer_hash,$AS);
 					continue;
-				case 'Update':
+				case 'Undo':
+					if($AS->obj & $AS->obj['type'] === 'Follow') {
+						// do unfollow activity
+						as_unfollow($channel,$AS);
+						continue;
+					}
 				case 'Delete':
 				case 'Add':
 				case 'Remove':
 				case 'Announce':
-				case 'Undo':
+
+
 					break;
 				default:
 					break;
