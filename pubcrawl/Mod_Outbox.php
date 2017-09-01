@@ -57,12 +57,14 @@ class Outbox extends \Zotlabs\Web\Controller {
 
 	        $x = array_merge(['@context' => [
     	        'https://www.w3.org/ns/activitystreams',
-				'https://w3id.org/security/v1'
+				'https://w3id.org/security/v1',
+				z_root() . '/apschema'
             	]], asencode_item_collection($items, \App::$query_string, 'OrderedCollection'));
 
 
 			$headers = [];
 			$headers['Content-Type'] = 'application/activity+json' ;
+			$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
 			$ret = json_encode($x);
 			$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 			$headers['Digest'] = 'SHA-256=' . $hash;  

@@ -19,17 +19,20 @@ class Ap_probe extends \Zotlabs\Web\Controller {
 		if(x($_GET,'addr')) {
 			$addr = $_GET['addr'];
 
-			$headers = 'Accept: application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
+			$headers = 'Accept: application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/ld+json';
 
 
 			$redirects = 0;
 		    $x = z_fetch_url($addr,true,$redirects, [ 'headers' => [ $headers ]]);
 	    	if($x['success'])
 				$o .= '<pre>' . $x['header'] . '</pre>' . EOL;
+
+
+				$o .= '<pre>' . $x['body'] . '</pre>' . EOL;
 				
 				$o .= 'verify returns: ' . str_replace("\n",EOL,print_r(\Zotlabs\Web\HTTPSig::verify($x),true)) . EOL;
 
-				if($x['body']) {
+				if($x['body'] && json_decode($x['body'])) {
 					$normalized1 = jsonld_normalize(json_decode($x['body']),[ 'algorithm' => 'URDNA2015', 'format' => 'application/nquads' ]);
 					$o .= str_replace("\n",EOL,htmlentities(var_export($normalized1,true))); 
 

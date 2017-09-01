@@ -794,6 +794,7 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 	$network = null;
 	$gnusoc = false;
 
+	$address = $webbie;
 	$salmon_key = null;
 	$salmon = '';
 	$atom_feed = null;
@@ -802,6 +803,17 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 
 	$x = $b['webfinger'];
 
+	if($x && strpos($webbie,'@') === false) {
+		$address = '';
+		if(array_key_exists('aliases',$x) && $x['aliases']) {
+			foreach($x['aliases'] as $al) {
+				if(substr($al,0,5) === 'acct:') {
+					$address = substr($al,5);
+					break;
+				}
+			}
+		}
+	}
 	if($x && array_key_exists('links',$x) && $x['links']) {
 		foreach($x['links'] as $link) {
 			if(array_key_exists('rel',$link)) {
@@ -839,7 +851,7 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 	if($atom_feed && $salmon_key)
 		$gnusoc = true;
 
-	if(! $gnusoc)
+	if(! ($gnusoc && $address))
 		return;
 
 	$k = z_fetch_url($atom_feed);
@@ -851,9 +863,9 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 		// stash any discovered pubsubhubbub hubs in case we need to follow them
 		// this will save an expensive lookup later
 
-		if($feed_meta['hubs'] && $b['address']) {
-			set_xconfig($b['address'],'system','push_hubs',$feed_meta['hubs']);
-			set_xconfig($b['address'],'system','feed_url',$atom_feed);
+		if($feed_meta['hubs'] && $address) {
+			set_xconfig($address,'system','push_hubs',$feed_meta['hubs']);
+			set_xconfig($address,'system','feed_url',$atom_feed);
 		}
 		if($feed_meta['author']['author_name']) {
 			$fullname = $feed_meta['author']['author_name'];
@@ -875,14 +887,14 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 	}
 
 	if(! $fullname)
-		$fullname = $b['address'];
+		$fullname = $address;
 
 
-	if(! ($uri && $fullname && $salmon_key && $salmon))
+	if(! ($uri && $fullname && $address && $salmon_key && $salmon))
 		return false;
 
 	$r = q("select * from xchan where xchan_hash = '%s' limit 1",
-		dbesc($b['address'])
+		dbesc($address)
 	);
 
 	if($r) {
@@ -890,16 +902,16 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 			dbesc($fullname),
 			dbesc('gnusoc'),
 			dbesc(datetime_convert()),
-			dbesc($b['address'])
+			dbesc($address)
 		);
 	}
 	else {
 		$r = xchan_store_lowlevel(
 			[
-				'xchan_hash'		 => $b['address'],
+				'xchan_hash'		 => $address,
 				'xchan_guid'		 => $uri,
 				'xchan_pubkey'       => $salmon_key,
-				'xchan_addr'		 => $b['address'],
+				'xchan_addr'		 => $address,
 				'xchan_url'          => $uri,
 				'xchan_name'		 => $fullname,
 				'xchan_name_date'    => datetime_convert(),
@@ -908,15 +920,15 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 		);
 	}
 	$r = q("select * from hubloc where hubloc_hash = '%s' limit 1",
-		dbesc($b['address'])
+		dbesc($address)
 	);
 
 	if(! $r) {
 		$r = hubloc_store_lowlevel(
 			[
 				'hubloc_guid'     => $uri,
-				'hubloc_hash'     => $b['address'],
-				'hubloc_addr'     => $b['address'],
+				'hubloc_hash'     => $address,
+				'hubloc_addr'     => $address,
 				'hubloc_network'  => 'gnusoc',
 				'hubloc_url'	  => $base,
 				'hubloc_host'     => $host,
@@ -927,14 +939,14 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 		);
 	}
 
-	$photos = import_xchan_photo($avatar,$b['address']);
+	$photos = import_xchan_photo($avatar,$address);
 	$r = q("update xchan set xchan_photo_date = '%s', xchan_photo_l = '%s', xchan_photo_m = '%s', xchan_photo_s = '%s', xchan_photo_mimetype = '%s' where xchan_hash = '%s'",
 		dbescdate(datetime_convert('UTC','UTC',$arr['photo_updated'])),
 		dbesc($photos[0]),
 		dbesc($photos[1]),
 		dbesc($photos[2]),
 		dbesc($photos[3]),
-		dbesc($b['address'])
+		dbesc($address)
 	);
 	
 	$b['success'] = true;
@@ -946,25 +958,42 @@ function gnusoc_import_author(&$a,&$b) {
 
 	$x = $b['author'];
 
-	if(strpos($x['network'],'gnusoc') === false)
+	// if a network is set, only look within this network; otherwise try and find this author anywhere
+
+	if(array_key_exists('network',$x) && strpos($x['network'],'gnusoc') === false)
 		return;
 
-	if(! $x['address'])
+	if((! $x['address']) && (! $x['url']))
 		return;
 
-	$r = q("select * from xchan where xchan_addr = '%s' limit 1",
-		dbesc($x['address'])
-	);
+	if($x['address']) {
+		$r = q("select * from xchan where xchan_addr = '%s' limit 1",
+			dbesc($x['address'])
+		);
+	}
+	elseif($x['url']) {
+		// let somebody upgrade from an 'unknown' connection which has no xchan_addr
+		$r = q("select * from xchan where xchan_url = '%s' and xchan_addr != '' limit 1",
+			dbesc($x['url'])
+		);
+	}
 	if($r) {
-		logger('in_cache: ' . $x['address'], LOGGER_DATA);
+		logger('in_cache: ' . $r[0]['xchan_name'], LOGGER_DATA);
 		$b['result'] = $r[0]['xchan_hash'];
 		return;
 	}
 
-	if(discover_by_webbie($x['address'])) {
+	$search = (($x['address']) ? $x['address'] : $x['url']);
+
+	if(discover_by_webbie($search)) {
 		$r = q("select xchan_hash from xchan where xchan_addr = '%s' limit 1",
-			dbesc($x['address'])
+			dbesc($search)
 		);
+		if(! $r) {
+			$r = q("select xchan_hash from xchan where xchan_url = '%s' limit 1",
+				dbesc($search)
+			);
+		}
 		if($r) {
 			$b['result'] = $r[0]['xchan_hash'];
 			return;

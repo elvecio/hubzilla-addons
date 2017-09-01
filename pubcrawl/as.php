@@ -288,6 +288,19 @@ function asencode_person($p) {
 			'publicKeyPem' => $p['xchan_pubkey']
 		];
 
+		$locs = zot_encode_locations($c);
+		if($locs) {
+			$ret['nomadicLocations'] = [];
+			foreach($locs as $loc) {
+				$ret['nomadicLocations'][] = [
+					'id'      => $loc['url'] . '/locs/' . substr($loc['address'],0,strpos($loc['address'],'@')),
+					'type'            => 'nomadicLocation',
+					'locationAddress' => 'acct:' . $loc['address'],
+					'locationPrimary' => (boolean) $loc['primary'],
+					'locationDeleted' => (boolean) $loc['deleted']
+				];
+			}
+		}
 	}
 	else {
 		$collections = get_xconfig($p['xchan_hash'],'activitystreams','collections',[]);
@@ -326,8 +339,8 @@ function activity_mapper($verb) {
 
 	if(strpos($verb,ACTIVITY_REACT) !== false)
 		return 'Create';
-//	if(strpos($verb,ACTIVITY_MOOD) !== false)
-//		return 'Create';
+	if(strpos($verb,ACTIVITY_MOOD) !== false)
+		return 'Create';
 
 	if(strpos($verb,ACTIVITY_POKE) !== false)
 		return 'Activity';
@@ -558,6 +571,9 @@ function as_unfollow($channel,$act) {
 
 
 function as_actor_store($url,$person_obj) {
+
+	if(! is_array($person_obj))
+		return;
 
 	$name = $person_obj['name'];
 	if(! $name)
