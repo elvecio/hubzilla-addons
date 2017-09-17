@@ -6,12 +6,14 @@
   <image_url>{{$large}}</image_url>
   <image_url_medium>{{$medium}}</image_url_medium>
   <image_url_small>{{$small}}</image_url_small>
-  {{if $dob}}<birthday>{{$dob}}</birthday>{{/if}}
-  <gender>{{$gender}}</gender>
-  <bio>{{$about}}</bio>
-  <location>{{$location}}</location>
   <searchable>{{$searchable}}</searchable>
   <nsfw>{{$nsfw}}</nsfw>
   <tag_string>{{$tags}}</tag_string>
+  {{if $profile_visible}}
+    {{if $dob}}<birthday>{{$dob}}</birthday>{{/if}}
+    <gender>{{$gender}}</gender>
+    <bio>{{$about}}</bio>
+    <location>{{$location}}</location>
+  {{/if}}
  </profile></post>
 </XML>

@@ -402,6 +402,8 @@ class Diaspora_Receiver {
 		$guid = notags($this->get_property('guid'));
 		$diaspora_handle = notags($this->get_author());
 
+		$text = notags($this->get_property('text'));
+
 		if($diaspora_handle != $this->msg['author']) {
 			logger('Potential forgery. Message handle is not the same as envelope sender.');
 			return 202;
@@ -425,6 +427,12 @@ class Diaspora_Receiver {
 
 		$source_url = 'https://' . substr($orig_author,strpos($orig_author,'@')+1) . '/fetch/post/' . $orig_guid ;
 		$orig_url = 'https://'.substr($orig_author,strpos($orig_author,'@')+1).'/posts/'.$orig_guid;
+
+		if($text)
+			$text = markdown_to_bb($text) . "\n";
+		else
+			$text = '';
+
 
 		$source_xml = get_diaspora_reshare_xml($source_url);
 
@@ -525,7 +533,7 @@ class Diaspora_Receiver {
 			}
 		}
 
-		$newbody = "[share author='" . urlencode($orig_author_name) 
+		$newbody = $text . "[share author='" . urlencode($orig_author_name) 
 			. "' profile='" . $orig_author_link 
 			. "' avatar='"  . $orig_author_photo 
 			. "' link='"    . $orig_url

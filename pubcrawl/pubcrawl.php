@@ -56,6 +56,9 @@ function pubcrawl_follow_allow(&$b) {
 }
 
 function pubcrawl_webfinger(&$b) {
+	if(! $b['channel'])
+		return;
+
 	$b['result']['links'][] = [ 
 		'rel'  => 'self', 
 		'type' => 'application/activity+json', 
@@ -361,14 +364,11 @@ function pubcrawl_queue_message($msg,$sender,$recip,$message_id = '') {
     if(! intval($allowed)) {
         return false;
     }
-
-//    if($public_batch)
-  //      $dest_url = $recip['hubloc_callback'] . '/public';
-//    else
         
 	$dest_url = $recip['hubloc_callback'];
 
     logger('URL: ' . $dest_url, LOGGER_DEBUG);
+	logger('DATA: ' . $msg, LOGGER_DATA);
 
     if(intval(get_config('system','activitypub_test')) || intval(get_pconfig($sender['channel_id'],'system','activitypub_test'))) {
         logger('test mode - delivery disabled');
@@ -451,7 +451,7 @@ function pubcrawl_connection_remove(&$x) {
 				z_root() . '/apschema'
 			]], 
 			[
-				'id' => z_root() . '/follow/' . $x['recipient']['abook_id'] . '#Undo',
+				'id' => z_root() . '/follow/' . $recip[0]['abook_id'] . '#Undo',
 				'type' => 'Undo',
 				'actor' => asencode_person($channel),
 				'object' => z_root() . '/follow/' . $recip[0]['abook_id']
@@ -461,8 +461,6 @@ function pubcrawl_connection_remove(&$x) {
 	$msg['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($msg,$channel);
 
 	$jmsg = json_encode($msg);
-
-	// @fixme - sign this message
 
 	// is $contact connected with this channel - and if the channel is cloned, also on this hub?
 	$single = deliverable_singleton($channel['channel_id'],$recip[0]);
@@ -522,7 +520,7 @@ function pubcrawl_permissions_create(&$x) {
 				'id' => z_root() . '/follow/' . $x['recipient']['abook_id'],
 				'type' => 'Follow',
 				'actor' => asencode_person($x['sender']),
-				'object' => asencode_person($x['recipient'])
+				'object' => $x['recipient']['xchan_url']
 		]);
 	}
 
@@ -775,7 +773,7 @@ function pubcrawl_follow_mod_init($x) {
 				'id' => z_root() . '/follow/' . $r[0]['abook_id'],
 				'type' => 'Follow',
 				'actor' => asencode_person($chan),
-				'object' => asencode_person($r[0])
+				'object' => $r[0]['xchan_url']
 		]);
 				
 
@@ -812,7 +810,7 @@ function pubcrawl_queue_deliver(&$b) {
 		$ret = $outq['outq_msg'];
 		$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 		$headers['Digest'] = 'SHA-256=' . $hash;  
-		$xhead = \Zotlabs\Web\HTTPSig::create_sig('',$headers,$channel['channel_prvkey'],z_root() . '/channel/' . argv(1),false);
+		$xhead = \Zotlabs\Web\HTTPSig::create_sig('',$headers,$channel['channel_prvkey'],z_root() . '/channel/' . $channel['channel_address'],false);
 	
 		$result = z_post_url($outq['outq_posturl'],$outq['outq_msg'],$retries,[ 'headers' => $xhead ]);
 

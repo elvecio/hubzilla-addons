@@ -257,7 +257,13 @@ function wppost_send(&$a,&$b) {
 
 		ob_start();
 
-		$client = new IXR_Client($wp_blog);
+		if(substr($wp_blog,0,5) === 'https') {
+			$port = 443;
+		}
+		else {
+			$port = 80;
+		}
+		$client = new IXR_Client($wp_blog,false,$port);
 
 
 		if($edited)
@@ -381,7 +387,13 @@ function wppost_post_remote_end(&$a,&$b) {
 		else
 			$data['red_avatar'] = $x[0]['xchan_photo_m'];
 
-		$client = new IXR_Client($wp_blog);
+		if(substr($wp_blog,0,5) === 'https') {
+			$port = 443;
+		}
+		else {
+			$port = 80;
+		}
+		$client = new IXR_Client($wp_blog,false,$port);
 
 		// this will fail if the post_to_red plugin isn't installed on the wordpress site
 
@@ -440,7 +452,13 @@ function wppost_drop_item(&$a,&$b) {
 
 	if($post_id && $wp_username && $wp_password && $wp_blog) {
 
-		$client = new IXR_Client($wp_blog);
+		if(substr($wp_blog,0,5) === 'https') {
+			$port = 443;
+		}
+		else {
+			$port = 80;
+		}
+		$client = new IXR_Client($wp_blog,false,$port);
 
 		if($b['item']['id'] == $b['item']['parent']) 
 			$res = $client->query('wp.deletePost',$wp_blogid,$wp_username,$wp_password,$post_id);

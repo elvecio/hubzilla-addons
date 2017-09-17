@@ -25,6 +25,7 @@ class Ap_probe extends \Zotlabs\Web\Controller {
 			$redirects = 0;
 		    $x = z_fetch_url($addr,true,$redirects, [ 'headers' => [ $headers ]]);
 	    	if($x['success'])
+
 				$o .= '<pre>' . $x['header'] . '</pre>' . EOL;
 
 
@@ -32,12 +33,12 @@ class Ap_probe extends \Zotlabs\Web\Controller {
 				
 				$o .= 'verify returns: ' . str_replace("\n",EOL,print_r(\Zotlabs\Web\HTTPSig::verify($x),true)) . EOL;
 
-				if($x['body'] && json_decode($x['body'])) {
-					$normalized1 = jsonld_normalize(json_decode($x['body']),[ 'algorithm' => 'URDNA2015', 'format' => 'application/nquads' ]);
-					$o .= str_replace("\n",EOL,htmlentities(var_export($normalized1,true))); 
+//				if($x['body'] && json_decode($x['body'])) {
+//					$normalized1 = jsonld_normalize(json_decode($x['body']),[ 'algorithm' => 'URDNA2015', 'format' => 'application/nquads' ]);
+//					$o .= str_replace("\n",EOL,htmlentities(var_export($normalized1,true))); 
 
 	//				$o .= '<pre>' . json_encode($normalized1, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . '</pre>';
-				}
+//				}
 
 				$o .= '<pre>' . str_replace(['\\n','\\'],["\n",''],jindent($x['body'])) . '</pre>';
 

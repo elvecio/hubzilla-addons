@@ -152,10 +152,117 @@ function asencode_item($i) {
 
 	$ret['actor']     = asencode_person($i['author']);
 
+	$t = asencode_taxonomy($i);
+	if($t) {
+		$ret['tag']       = $t;
+	}
+
+
+	$a = asencode_attachment($i);
+	if($a) {
+		$ret['attachment'] = $a;
+	}
 
 	return $ret;
 }
 
+function asdecode_taxonomy($item) {
+
+	$ret = [];
+
+	if($item['tag']) {
+		foreach($item['tag'] as $t) {
+			if(! array_key_exists('type',$t))
+				$t['type'] = 'Hashtag';
+
+			switch($t['type']) {
+				case 'Hashtag':
+					$ret[] = [ 'ttype' => TERM_HASHTAG, 'url' => $t['id'], 'term' => ((substr($t['name'],0,1) === '#') ? substr($t['name'],1) : $t['name']) ];
+					break;
+
+				case 'Mention':
+TERM_MENTION:
+					$ret[] = [ 'ttype' => TERM_MENTION, 'url' => $t['href'], 'term' => ((substr($t['name'],0,1) === '@') ? substr($t['name'],1) : $t['name']) ];
+					break;
+
+				default:
+					break;
+			}
+		}
+	}
+
+	return $ret;
+}
+
+
+function asencode_taxonomy($item) {
+
+	$ret = [];
+
+	if($item['term']) {
+		foreach($item['term'] as $t) {
+			switch($t['ttype']) {
+				case TERM_HASHTAG:
+					$ret[] = [ 'id' => $t['url'], 'name' => '#' . $t['term'] ];
+					break;
+
+				case TERM_MENTION:
+					$ret[] = [ 'type' => 'Mention', 'href' => $t['url'], 'name' => '@' . $t['term'] ];
+					break;
+
+				default:
+					break;
+			}
+		}
+	}
+
+	return $ret;
+}
+
+function asencode_attachment($item) {
+
+	$ret = [];
+
+	if($item['attach']) {
+		$atts = json_decode($item['attach'],true);
+		if($atts) {
+			foreach($atts as $att) {
+				if(strpos($att['type'],'image')) {
+					$ret[] = [ 'type' => 'Image', 'url' => $att['href'] ];
+				}
+				else {
+					$ret[] = [ 'type' => 'Link', 'mediaType' => $att['type'], 'href' => $att['href'] ];
+				}
+			}
+		}
+	}
+
+	return $ret;
+}
+
+
+function asdecode_attachment($item) {
+
+	$ret = [];
+
+	if($item['attachment']) {
+		foreach($item['attachment'] as $att) {
+			switch($att['type']) {
+				case 'Image':
+					$ret[] = [ 'href' => $att['url'] ];
+					break;
+				case 'Link':
+					$ret[] = [ 'type' => $att['mediaType'], 'href' => $att['href'] ]; 
+					break;
+				default:
+					break;
+				
+			}
+		}
+	}
+
+	return $ret;
+}
 
 
 
@@ -308,8 +415,8 @@ function asencode_person($p) {
 			$ret = array_merge($ret,$collections);
 		}
 		else {
-			$ret['inbox'] = z_root() . '/nullbox';
-			$ret['outbox'] = z_root() . '/nullbox';
+			$ret['inbox'] = null;
+			$ret['outbox'] = null;
 		}
 	}
 
@@ -400,11 +507,11 @@ function as_follow($channel,$act) {
 	/* actor is now following $channel */
 
 	$person_obj = $act->actor;
+	$follow_id = $act->id;
+
 	if(is_array($person_obj)) {
 
 		as_actor_store($person_obj['id'],$person_obj);
-
-		set_abconfig($channel['channel_id'],$person_obj['id'],'pubcrawl','follow_id', $act->id);
 
 		// Do we already have an abook record? 
 
@@ -414,8 +521,15 @@ function as_follow($channel,$act) {
 		);
 		if($r) {
 			$contact = $r[0];
+
+			if($act->type === 'Accept' && $act->obj['type'] === 'Follow') {
+				$follow_id = z_root() . '/follow/' . $contact['id'];
+			}
 		}
+
 	}
+
+	set_abconfig($channel['channel_id'],$person_obj['id'],'pubcrawl','follow_id', $follow_id);
 
 	$x = \Zotlabs\Access\PermissionRoles::role_perms('social');
 	$their_perms = \Zotlabs\Access\Permissions::FilledPerms($x['perms_connect']);
@@ -577,7 +691,9 @@ function as_actor_store($url,$person_obj) {
 
 	$name = $person_obj['name'];
 	if(! $name)
-		$name = t('unknown');
+		$name = $person_obj['preferredUsername'];
+	if(! $name)
+		$name = t('Unknown');
 
 	if($person_obj['icon']) {
 		if(is_array($person_obj['icon'])) {
@@ -590,7 +706,7 @@ function as_actor_store($url,$person_obj) {
 			$icon = $person_obj['icon'];
 	}
 
-	if($person_obj['url'] && $person_obj['url']['href'])
+	if(is_array($person_obj['url']) && array_key_exists('href', $person_obj['url']))
 		$profile = $person_obj['url']['href'];
 	else
 		$profile = $url;

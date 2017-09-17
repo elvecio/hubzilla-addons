@@ -48,11 +48,13 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 		if($is_public) {
 
-			$channels = q("SELECT * from channel where channel_id in ( SELECT abook_channel from abook left join xchan on abook_xchan = xchan_hash WHERE xchan_network = 'activitypub' and xchan_addr = '%s' ) and channel_removed = 0 ",
+			$channels = q("SELECT * from channel where channel_id in ( SELECT abook_channel from abook left join xchan on abook_xchan = xchan_hash WHERE xchan_network = 'activitypub' and xchan_hash = '%s' ) and channel_removed = 0 ",
 		        dbesc($observer_hash)
 			);
+
 			if($channels === false)
 				$channels = [];
+
 			if(! $sys_disabled)
 				$channels[] = get_sys_channel();
 
@@ -88,6 +90,16 @@ class Inbox extends \Zotlabs\Web\Controller {
 						continue;
 					}
 					break;
+				case 'Accept':
+					if($AS->obj & $AS->obj['type'] === 'Follow') {
+						// do follow activity
+						as_follow($channel,$AS);
+						continue;
+					}
+					break;
+
+				case 'Reject':
+
 				default:
 					break;
 
