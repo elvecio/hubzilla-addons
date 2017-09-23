@@ -66,6 +66,9 @@ function std_embeds_html2bb_video(&$x) {
 	$s = preg_replace('#<a [^>]+>(.*?)https?://www.youtube.com/((?:v|cp)/[A-Za-z0-9\-_=]+)(.*?)</a>#ism',
 			'[embed]https://www.youtube.com/watch?v=$2[/embed]', $s);
 
+	$s = preg_replace('#<a [^>]+>(.*?)youtube.com/(.*?)((?:v|cp)\=[A-Za-z0-9\-_=]+)(.*?)</a>#ism',
+			'[embed]https://www.youtube.com/watch?v=$3[/embed]', $s);
+
 	$s = preg_replace('#<iframe[^>](.*?)https?://www.youtube.com/embed/([A-Za-z0-9\-_=]+)(.*?)</iframe>#ism',
 			'[embed]https://www.youtube.com/watch?v=$2[/embed]', $s);
 

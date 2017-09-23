@@ -102,10 +102,45 @@ function asencode_item_collection($items,$id,$type,$extra = null) {
 	return $ret;
 }
 
+function asencode_follow_collection($items,$id,$type,$extra = null) {
+
+	$ret = [
+		'id' => z_root() . '/' . $id,
+		'type' => $type,
+		'totalItems' => count($items),
+	];
+	if($extra)
+		$ret = array_merge($ret,$extra);
+
+	if($items) {
+		$x = [];
+		foreach($items as $i) {
+			if($i['xchan_network'] === 'activitypub' ) {
+				if($i['xchan_url']) {
+					$x[] = $i['xchan_url'];
+				}
+			}
+			else {
+				if($i['xchan_addr']) {
+					$x[] = 'acct:' . $i['xchan_addr'];
+				}
+			}
+		}
+		if($type === 'OrderedCollection')
+			$ret['orderedItems'] = $x;
+		else
+			$ret['items'] = $x;
+	}
+
+	return $ret;
+}
+
+
+
 
 function asencode_item($i) {
 
-	$ret = array();
+	$ret = [];
 
 	if(intval($i['item_deleted'])) {
 		$ret['type'] = 'Tombstone';
@@ -114,7 +149,14 @@ function asencode_item($i) {
 		return $ret;
 	}
 
-	$ret['type'] = 'Note';
+	$images = false;
+	$has_images = preg_match_all('/\[[zi]mg(.*?)\](.*?)\[/ism',$i['body'],$images,PREG_SET_ORDER); 
+
+	if((! $has_images) || get_pconfig($i['uid'],'activitypub','downgrade_media',true))
+		$ret['type'] = 'Note';
+	else
+		$ret['type'] = 'Article';
+
 	$ret['id']   = ((strpos($i['mid'],'http') === 0) ? $i['mid'] : z_root() . '/item/' . urlencode($i['mid']));
 
 	if($i['title'])
@@ -144,8 +186,17 @@ function asencode_item($i) {
 		'href' => $i['plink']
 	];
 
+	$cnv = null;
+
 	if($i['id'] != $i['parent']) {
 		$ret['inReplyTo'] = ((strpos($i['parent_mid'],'http') === 0) ? $i['parent_mid'] : z_root() . '/item/' . urlencode($i['parent_mid']));
+		$cnv = get_iconfig($i['parent'],'ostatus','conversation');
+	}
+	if(! $cnv) {
+		$cnv = get_iconfig($i,'ostatus','conversation');
+	}
+	if($cnv) {
+		$ret['conversation'] = $cnv;
 	}
 
 	$ret['content']   = bbcode($i['body']);
@@ -157,11 +208,21 @@ function asencode_item($i) {
 		$ret['tag']       = $t;
 	}
 
-
 	$a = asencode_attachment($i);
 	if($a) {
 		$ret['attachment'] = $a;
 	}
+
+    if($has_images && $ret['type'] === 'Note') {
+		$img = [];
+        foreach($images as $match) {
+			$img[] =  [ 'type' => 'Image', 'url' => $match[2] ]; 
+        }
+		if(! $ret['attachment'])
+			$ret['attachment'] = [];
+
+		$ret['attachment'] = array_merge($img,$ret['attachment']);
+    }
 
 	return $ret;
 }
@@ -247,17 +308,17 @@ function asdecode_attachment($item) {
 
 	if($item['attachment']) {
 		foreach($item['attachment'] as $att) {
-			switch($att['type']) {
-				case 'Image':
-					$ret[] = [ 'href' => $att['url'] ];
-					break;
-				case 'Link':
-					$ret[] = [ 'type' => $att['mediaType'], 'href' => $att['href'] ]; 
-					break;
-				default:
-					break;
-				
-			}
+			$entry = [];
+			if($att['href'])
+				$entry['href'] = $att['href'];
+			elseif($att['url'])
+				$entry['href'] = $att['url'];
+			if($att['mediaType'])
+				$entry['type'] = $att['mediaType'];
+			elseif($att['type'] === 'Image')
+				$entry['type'] = 'image/jpeg';
+			if($entry)
+				$ret[] = $entry;
 		}
 	}
 
@@ -268,7 +329,8 @@ function asdecode_attachment($item) {
 
 function asencode_activity($i) {
 
-	$ret = array();
+	$ret   = [];
+	$reply = false;
 
 	if(intval($i['item_deleted'])) {
 		$ret['type'] = 'Tombstone';
@@ -303,11 +365,20 @@ function asencode_activity($i) {
 
 	if($i['id'] != $i['parent']) {
 		$ret['inReplyTo'] = ((strpos($i['parent_mid'],'http') === 0) ? $i['parent_mid'] : z_root() . '/item/' . urlencode($i['parent_mid']));
+
+		$d = q("select xchan_url from item left join xchan on xchan_hash = author_xchan where id = %d limit 1",
+			intval($i['parent'])
+		);
+		if($d) {
+			$reply_url = (($i['item_private']) ? $d[0]['xchan_url'] : ACTIVITY_PUBLIC_INBOX);
+		}
+
+		$reply = true;
 	}
 
-	$ret['content']   = bbcode($i['body']);
 
-	$ret['actor']     = asencode_person($i['author']);
+	$ret['actor'] = asencode_person($i['author']);
+
 	if($i['obj']) {
 		$ret['object'] = asencode_object($i['obj']);
 	}
@@ -315,18 +386,33 @@ function asencode_activity($i) {
 		$ret['object'] = asencode_item($i);
 	}
 
+
 	if($i['target']) {
 		$ret['target'] = asencode_object($i['target']);
 	}
 
-
-	if(! $i['item_private']) {
-		$ret['to'] = [ ACTIVITY_PUBLIC_INBOX ];
-		if($i['item_origin'])
-			$ret['cc'] = [ z_root() . '/followers/' . substr($i['owner']['xchan_addr'],0,strpos($i['owner']['xchan_addr'],'@')) ];
+	if($reply) {
+		$ret['to'] = [ $reply_url ];
+		if(in_array($ret['object']['type'], [ 'Note', 'Article' ]))
+			$ret['object']['to'] = $ret['to'];
 	}
 	else {
-		$ret['bto'] = as_map_acl($i);
+		if($i['item_private']) {
+			$ret['bto'] = as_map_acl($i);
+			if(in_array($ret['object']['type'], [ 'Note', 'Article' ]))
+				$ret['object']['bto'] = $ret['bto'];
+		}
+		else {
+			$ret['to'] = [ ACTIVITY_PUBLIC_INBOX ];
+			if(in_array($ret['object']['type'], [ 'Note', 'Article' ]))
+				$ret['object']['to'] = $ret['to'];
+
+			if($i['item_origin']) {
+				$ret['cc'] = [ z_root() . '/followers/' . substr($i['owner']['xchan_addr'],0,strpos($i['owner']['xchan_addr'],'@')) ];
+				if(in_array($ret['object']['type'], [ 'Note', 'Article' ]))
+					$ret['object']['cc'] = $ret['cc'];
+			}				
+		}
 	} 
 
 
@@ -370,7 +456,7 @@ function asencode_person($p) {
 	$ret['name']  = $p['xchan_name'];
 	$ret['icon']  = [ 
 		'type'      => 'Image',
-		'mediaType' => $p['xchan_photo_mimetype'],
+		'mediaType' => (($p['xchan_photo_mimetype']) ? $p['xchan_photo_mimetype'] : 'image/png' ),
 		'url'       => $p['xchan_photo_l'],
 		'height'    => 300,
 		'width'     => 300,
@@ -385,9 +471,12 @@ function asencode_person($p) {
 
 	if($c) {
 
-		$ret['inbox']       = z_root() . '/inbox/' . $c['channel_address'];
-		$ret['outbox']      = z_root() . '/outbox/' . $c['channel_address'];
-		$ret['endpoints']   = [ 'sharedInbox' => z_root() . '/inbox/[public]' ];
+		$ret['inbox']       = z_root() . '/inbox/'     . $c['channel_address'];
+		$ret['outbox']      = z_root() . '/outbox/'    . $c['channel_address'];
+		$ret['followers']   = z_root() . '/followers/' . $c['channel_address'];
+		$ret['following']   = z_root() . '/following/' . $c['channel_address'];
+
+		$ret['endpoints']   = [ 'sharedInbox' => z_root() . '/inbox' ];
 
 		$ret['publicKey'] = [
 			'id'           => $p['xchan_url'] . '/public_key_pem',
@@ -492,7 +581,7 @@ function as_fetch($url) {
 
 	$redirects = 0;
 	$x = z_fetch_url($url,true,$redirects,
-		['headers' => [ 'Accept: application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"']]);
+		['headers' => [ 'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/activity+json']]);
 
 	if($x['success']) {
 		return $x['body'];
@@ -503,17 +592,31 @@ function as_fetch($url) {
 function as_follow($channel,$act) {
 
 	$contact = null;
+	$their_follow_id = null;
 
-	/* actor is now following $channel */
+	/*
+	 * 
+	 * if $act->type === 'Follow', actor is now following $channel 
+	 * if $act->type === 'Accept', actor has approved a follow request from $channel 
+	 *	 
+	 */
 
 	$person_obj = $act->actor;
-	$follow_id = $act->id;
 
+	if($act->type === 'Follow') {
+		$their_follow_id  = $act->id;
+	}
+	elseif($act->type === 'Accept') {
+		$my_follow_id = z_root() . '/follow/' . $contact['id'];
+	}
+	
 	if(is_array($person_obj)) {
+
+		// store their xchan and hubloc
 
 		as_actor_store($person_obj['id'],$person_obj);
 
-		// Do we already have an abook record? 
+		// Find any existing abook record 
 
 		$r = q("select * from abook left join xchan on abook_xchan = xchan_hash where abook_xchan = '%s' and abook_channel = %d limit 1",
 			dbesc($person_obj['id']),
@@ -521,42 +624,75 @@ function as_follow($channel,$act) {
 		);
 		if($r) {
 			$contact = $r[0];
-
-			if($act->type === 'Accept' && $act->obj['type'] === 'Follow') {
-				$follow_id = z_root() . '/follow/' . $contact['id'];
-			}
 		}
-
 	}
-
-	set_abconfig($channel['channel_id'],$person_obj['id'],'pubcrawl','follow_id', $follow_id);
 
 	$x = \Zotlabs\Access\PermissionRoles::role_perms('social');
 	$their_perms = \Zotlabs\Access\Permissions::FilledPerms($x['perms_connect']);
 
 	if($contact && $contact['abook_id']) {
 
-		// perhaps we were already sharing with this person. Now they're sharing with us.
-		// That makes us friends. Maybe.
+		// A relationship of some form already exists on this site. 
 
-		foreach($their_perms as $k => $v)
-			set_abconfig($channel['channel_id'],$contact['abook_xchan'],'their_perms',$k,$v);
+		switch($act->type) {
 
-		$abook_instance = $contact['abook_instance'];
+			case 'Follow':
 
-		if(strpos($abook_instance,z_root()) === false) {
-			if($abook_instance) 
-				$abook_instance .= ',';
-			$abook_instance .= z_root();
+				// A second Follow request, but we haven't approved the first one
 
-			$r = q("update abook set abook_instance = '%s', abook_not_here = 0 where abook_id = %d and abook_channel = %d",
-				dbesc($abook_instance),
-				intval($contact['abook_id']),
-				intval($channel['channel_id'])
-			);
+				if($contact['abook_pending']) {
+					return;
+				}
+
+				// We've already approved them or followed them first
+				// Send an Accept back to them
+
+				set_abconfig($channel['channel_id'],$person_obj['id'],'pubcrawl','their_follow_id', $their_follow_id);
+				\Zotlabs\Daemon\Master::Summon([ 'Notifier', 'permission_accept', $contact['abook_id'] ]);
+				return;
+
+			case 'Accept':
+
+				// They accepted our Follow request - set default permissions
+
+				foreach($their_perms as $k => $v) {
+					set_abconfig($channel['channel_id'],$contact['abook_xchan'],'their_perms',$k,$v);
+				}
+
+				$abook_instance = $contact['abook_instance'];
+
+				if(strpos($abook_instance,z_root()) === false) {
+					if($abook_instance) 
+						$abook_instance .= ',';
+					$abook_instance .= z_root();
+
+					$r = q("update abook set abook_instance = '%s', abook_not_here = 0 
+						where abook_id = %d and abook_channel = %d",
+						dbesc($abook_instance),
+						intval($contact['abook_id']),
+						intval($channel['channel_id'])
+					);
+				}
+		
+				return;
+			default:
+				return;
+
 		}
+	}
+
+	// No previous relationship exists.
+
+	if($act->type === 'Accept') {
+		// This should not happen unless we deleted the connection before it was accepted.
 		return;
 	}
+
+	// From here on out we assume a Follow activity to somebody we have no existing relationship with
+
+	set_abconfig($channel['channel_id'],$person_obj['id'],'pubcrawl','their_follow_id', $their_follow_id);
+
+	// The xchan should have been created by as_actor_store() above
 
 	$r = q("select * from xchan where xchan_hash = '%s' and xchan_network = 'activitypub' limit 1",
 		dbesc($person_obj['id'])
@@ -567,7 +703,6 @@ function as_follow($channel,$act) {
 		return;
 	}
 	$ret = $r[0];
-
 
 	$p = \Zotlabs\Access\Permissions::connect_perms($channel['channel_id']);
 	$my_perms  = $p['perms'];
@@ -619,7 +754,9 @@ function as_follow($channel,$act) {
 			);
 
 			if($my_perms && $automatic) {
-				// Send back a follow notification to them
+				// send an Accept for this Follow activity
+				\Zotlabs\Daemon\Master::Summon([ 'Notifier', 'permission_accept', $new_connection[0]['abook_id'] ]);
+				// Send back a Follow notification to them
 				\Zotlabs\Daemon\Master::Summon([ 'Notifier', 'permission_create', $new_connection[0]['abook_id'] ]);
 			}
 
@@ -652,6 +789,7 @@ function as_follow($channel,$act) {
 			group_add_member($channel['channel_id'],'',$ret['xchan_hash'],$g['id']);
 	}
 
+
 	return;
 
 }
@@ -674,7 +812,15 @@ function as_unfollow($channel,$act) {
 			intval($channel['channel_id'])
 		);
 		if($r) {
-			contact_remove($channel['channel_id'],$r[0]['abook_id']);
+			// This is just to get a list of permission names, we don't care about the values
+			$x = \Zotlabs\Access\PermissionRoles::role_perms('social');
+			$my_perms = \Zotlabs\Access\Permissions::FilledPerms($x['perms_connect']);
+
+			// remove all permissions they provided
+
+			foreach($my_perms as $k => $v) {
+				del_abconfig($channel['channel_id'],$r[0]['xchan_hash'],'their_perms',$k);
+			}
 		}
 	}
 
@@ -720,12 +866,12 @@ function as_actor_store($url,$person_obj) {
 		$collections['inbox'] = $inbox;
 		if($person_obj['outbox'])
 			$collections['outbox'] = $person_obj['outbox'];
-		if($person_obj['sharedInbox'])
-			$collections['sharedInbox'] = $person_obj['sharedInbox'];
 		if($person_obj['followers'])
 			$collections['followers'] = $person_obj['followers'];
 		if($person_obj['following'])
 			$collections['following'] = $person_obj['following'];
+		if($person_obj['endpoints'] && $person_obj['endpoints']['sharedInbox'])
+			$collections['sharedInbox'] = $person_obj['endpoints']['sharedInbox'];
 	}
 
 	if(array_key_exists('publicKey',$person_obj) && array_key_exists('publicKeyPem',$person_obj['publicKey'])) {
@@ -820,7 +966,7 @@ function as_actor_store($url,$person_obj) {
 
 function as_create_action($channel,$observer_hash,$act) {
 
-	if($act->obj['type'] === 'Note') {
+	if(in_array($act->obj['type'], [ 'Note', 'Article' ])) {
 		as_create_note($channel,$observer_hash,$act);
 	}
 
@@ -829,7 +975,7 @@ function as_create_action($channel,$observer_hash,$act) {
 
 function as_like_action($channel,$observer_hash,$act) {
 
-	if($act->obj['type'] === 'Note') {
+	if(in_array($act->obj['type'], [ 'Note', 'Article' ])) {
 		as_like_note($channel,$observer_hash,$act);
 	}
 
@@ -915,12 +1061,11 @@ function as_create_note($channel,$observer_hash,$act) {
 	if(! $s['parent_mid'])
 		$s['parent_mid'] = $s['mid'];
 	
-	$s['title'] = as_bb_content($content,'name');
-	$s['body'] = as_bb_content($content,'content');
-	$s['verb'] = ACTIVITY_POST;
+	$s['title']    = as_bb_content($content,'name');
+	$s['body']     = as_bb_content($content,'content');
+	$s['verb']     = ACTIVITY_POST;
 	$s['obj_type'] = ACTIVITY_OBJ_NOTE;
-	$s['app'] = t('ActivityPub');
-
+	$s['app']      = t('ActivityPub');
 
 	if($abook) {
 		if(! post_is_importable($s,$abook[0])) {
@@ -929,7 +1074,45 @@ function as_create_note($channel,$observer_hash,$act) {
 		}
 	}
 
-	$x = item_store($s);
+	if($act->obj['conversation']) {
+		set_iconfig($s,'ostatus','conversation',$act->obj['conversation'],1);
+	}
+
+	$a = asdecode_taxonomy($act->obj);
+	if($a) {
+		$s['term'] = $a;
+	}
+
+	$a = asdecode_attachment($act->obj);
+	if($a) {
+		$s['attach'] = $a;
+	}
+
+	if($act->obj['type'] === 'Note' && $s['attach']) {
+		foreach($s['attach'] as $img) {
+			if(strpos($img['type'],'image') !== false) {
+				$s['body'] .= "\n\n" . '[img]' . $img['href'] . '[/img]';
+			}
+		}
+	}
+
+	set_iconfig($s,'activitypub','recips',$act->raw_recips);
+
+	$r = q("select created, edited from item where mid = '%s' and uid = %d limit 1",
+		dbesc($s['mid']),
+		intval($s['uid'])
+	);
+	if($r) {
+		if($s['edited'] > $r[0]['edited']) {
+			$x = item_store_update($s);
+		}
+		else {
+			return;
+		}
+	}
+	else {
+		$x = item_store($s);
+	}
 
 }
 
@@ -1019,7 +1202,7 @@ function as_like_note($channel,$observer_hash,$act) {
 				array('rel' => 'alternate', 'type' => 'text/html', 'href' => $item_author['xchan_url']),
 				array('rel' => 'photo', 'type' => $item_author['xchan_photo_mimetype'], 'href' => $item_author['xchan_photo_m'])),
 			),
-		)
+		), JSON_UNESCAPED_SLASHES
 	);
 
 	if($act->type === 'Like')
@@ -1041,6 +1224,11 @@ function as_like_note($channel,$observer_hash,$act) {
 	$s['obj_type'] = $objtype;
 	$s['obj'] = $object;
 
+	if($act->obj['conversation']) {
+		set_iconfig($s,'ostatus','conversation',$act->obj['conversation'],1);
+	}
+
+	set_iconfig($s,'activitypub','recips',$act->raw_recips);
 
 	$result = item_store($s);
 

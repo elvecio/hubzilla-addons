@@ -56,19 +56,19 @@ class Outbox extends \Zotlabs\Web\Controller {
 		if(pubcrawl_is_as_request()) {
 
 	        $x = array_merge(['@context' => [
-    	        'https://www.w3.org/ns/activitystreams',
+				ACTIVITYSTREAMS_JSONLD_REV,
 				'https://w3id.org/security/v1',
-				z_root() . '/apschema'
+				z_root() . ZOT_APSCHEMA_REV
             	]], asencode_item_collection($items, \App::$query_string, 'OrderedCollection'));
 
 
 			$headers = [];
-			$headers['Content-Type'] = 'application/activity+json' ;
-			$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
-			$ret = json_encode($x);
+			$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
+			$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$channel);
+			$ret = json_encode($x, JSON_UNESCAPED_SLASHES);
 			$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 			$headers['Digest'] = 'SHA-256=' . $hash;  
-			\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
+			\Zotlabs\Web\HTTPSig::create_sig('',$headers,$channel['channel_prvkey'],z_root() . '/channel/' . $channel['channel_address'],true);
 			echo $ret;
 			killme();
 

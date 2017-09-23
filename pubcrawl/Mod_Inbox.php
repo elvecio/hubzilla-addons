@@ -5,8 +5,6 @@ namespace Zotlabs\Module;
 class Inbox extends \Zotlabs\Web\Controller {
 
 	function post() {
-		if(argc() <= 1)
-			return;
 
 		$sys_disabled = false;
 
@@ -16,7 +14,7 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 		$is_public = false;
 
-		if(argv(1) === '[public]') {
+		if(argc() == 1 || argv(1) === '[public]') {
 			$is_public = true;
 		}
 		else {
@@ -29,6 +27,8 @@ class Inbox extends \Zotlabs\Web\Controller {
 			return;
 
 		logger('inbox_activity: ' . jindent($data), LOGGER_DATA);
+
+		\Zotlabs\Web\HTTPSig::verify($data);
 
 		$AS = new \Zotlabs\Lib\ActivityStreams($data);
 
@@ -46,11 +46,24 @@ class Inbox extends \Zotlabs\Web\Controller {
 		if(! $observer_hash)
 			return;
 
+
+
 		if($is_public) {
 
-			$channels = q("SELECT * from channel where channel_id in ( SELECT abook_channel from abook left join xchan on abook_xchan = xchan_hash WHERE xchan_network = 'activitypub' and xchan_hash = '%s' ) and channel_removed = 0 ",
-		        dbesc($observer_hash)
-			);
+			$parent = ((array_key_exists('inReplyTo',$AS->obj)) ? urldecode($AS->obj['inReplyTo']) : '');
+
+			if($parent) {
+				//this is a comment - deliver to everybody who owns the parent
+				$channels = q("SELECT * from channel where channel_id in ( SELECT uid from item where ( mid = '%s' || mid = '%s' ) and parent_mid = mid )",
+					dbesc($parent),
+					dbesc(basename($parent))
+				);
+			}
+			else {
+				$channels = q("SELECT * from channel where channel_id in ( SELECT abook_channel from abook left join xchan on abook_xchan = xchan_hash WHERE xchan_network = 'activitypub' and xchan_hash = '%s' ) and channel_removed = 0 ",
+					dbesc($observer_hash)
+				);
+			}
 
 			if($channels === false)
 				$channels = [];
@@ -74,11 +87,13 @@ class Inbox extends \Zotlabs\Web\Controller {
 			return;
 
 		$saved_recips = [];
-		foreach( [ 'to', 'cc', 'audience' ] as $x ) {
+		foreach( [ 'to', 'cc', 'bto', 'bcc', 'audience' ] as $x ) {
 			if(array_key_exists($x,$AS->data)) {
 				$saved_recips[$x] = $AS->data[$x];
 			}
 		}
+		$AS->set_recips($saved_recips);
+
 
 		foreach($channels as $channel) {
 

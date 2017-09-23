@@ -34,7 +34,10 @@ class Apschema extends \Zotlabs\Web\Controller {
 				'nomadicLocations' => [
 					'@id'   => 'zot:nomadicLocations',
 					'@type' => '@id'
-				]
+				],
+
+				'ostatus'      => 'http://ostatus.org#',
+				'conversation' => 'ostatus:conversation'
 
 			]
 		];

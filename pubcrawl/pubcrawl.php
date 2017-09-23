@@ -29,10 +29,13 @@ function pubcrawl_load() {
 		'follow_allow'               => 'pubcrawl_follow_allow',
 		'discover_channel_webfinger' => 'pubcrawl_discover_channel_webfinger',
 		'permissions_create'         => 'pubcrawl_permissions_create',
+		'permissions_accept'         => 'pubcrawl_permissions_accept',
 		'connection_remove'          => 'pubcrawl_connection_remove',
 		'notifier_hub'               => 'pubcrawl_notifier_process',
 		'feature_settings_post'      => 'pubcrawl_feature_settings_post',
 		'feature_settings'           => 'pubcrawl_feature_settings',
+		'channel_links'              => 'pubcrawl_channel_links',
+		'personal_xrd'               => 'pubcrawl_personal_xrd',
 		'queue_deliver'              => 'pubcrawl_queue_deliver'
 	]);
 }
@@ -55,17 +58,49 @@ function pubcrawl_follow_allow(&$b) {
 
 }
 
+function pubcrawl_channel_links(&$b) {
+	$c = channelx_by_nick($b['channel_address']);
+	if($c && get_pconfig($c['channel_id'],'system','activitypub_allowed')) {
+		$b['channel_links'][] = [
+			'rel' => 'alternate',
+			'type' => 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+			'url' => z_root() . '/channel/' . $c['channel_address']
+		];
+		$b['channel_links'][] = [
+			'rel' => 'alternate',
+			'type' => 'application/activity+json',
+			'url' => z_root() . '/channel/' . $c['channel_address']
+		];
+	}
+}
+
 function pubcrawl_webfinger(&$b) {
 	if(! $b['channel'])
 		return;
 
 	$b['result']['links'][] = [ 
 		'rel'  => 'self', 
-		'type' => 'application/activity+json', 
+		'type' => 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+		'href' => z_root() . '/channel/' . $b['channel']['channel_address']
+	];
+	$b['result']['links'][] = [ 
+		'rel'  => 'self', 
+		'type' => 'application/activity+json',
 		'href' => z_root() . '/channel/' . $b['channel']['channel_address']
 	];
 }
 
+function pubcrawl_personal_xrd(&$b) {
+
+	if(! intval(get_pconfig($b['user']['channel_id'],'system','activitypub_allowed')))
+		return;
+
+	$s = '<Link rel="self" type="application/ld+json" href="' . z_root() . '/channel/' . $b['user']['channel_address'] . '" />';
+	$s = '<Link rel="self" type="application/activity+json" href="' . z_root() . '/channel/' . $b['user']['channel_address'] . '" />';
+
+	$b['xml'] = str_replace('</XRD>', $s . "\n" . '</XRD>',$b['xml']);
+
+}
 
 function pubcrawl_discover_channel_webfinger(&$b) {
 
@@ -79,7 +114,7 @@ function pubcrawl_discover_channel_webfinger(&$b) {
     if(strpos($url,'@') && $x && array_key_exists('links',$x) && $x['links']) {
         foreach($x['links'] as $link) {
             if(array_key_exists('rel',$link) && array_key_exists('type',$link)) {
-                if($link['rel'] === 'self' && $link['type'] === 'application/activity+json') {
+                if($link['rel'] === 'self' && ($link['type'] === 'application/activity+json' || strpos($link['type'],'ld+json') !== false)) {
 					$url = $x['href'];
                 }
             }
@@ -117,11 +152,15 @@ function pubcrawl_discover_channel_webfinger(&$b) {
 
 	as_actor_store($url,$person_obj);
 
+	$b['success'] = true;
 
 }
 
 
 function pubcrawl_load_module(&$b) {
+
+	//logger('module: ' . \App::$query_string);
+
 	if($b['module'] === 'inbox') {
 		require_once('addon/pubcrawl/Mod_Inbox.php');
 		$b['controller'] = new \Zotlabs\Module\Inbox();
@@ -152,17 +191,31 @@ function pubcrawl_load_module(&$b) {
 		$b['controller'] = new \Zotlabs\Module\Apschema();
 		$b['installed'] = true;
 	}
+	if($b['module'] === 'followers') {
+		require_once('addon/pubcrawl/Mod_Followers.php');
+		$b['controller'] = new \Zotlabs\Module\Followers();
+		$b['installed'] = true;
+	}
+	if($b['module'] === 'following') {
+		require_once('addon/pubcrawl/Mod_Following.php');
+		$b['controller'] = new \Zotlabs\Module\Following();
+		$b['installed'] = true;
+	}
 }
 
 
 function pubcrawl_is_as_request() {
 
+	if(strpos($_SERVER['HTTP_ACCEPT'],'activity') !== false) {
+		logger('Accept: ' . $_SERVER['HTTP_ACCEPT'], LOGGER_DATA);
+	}
+
 	if($_REQUEST['module_format'] === 'json')
 		return true;
 
 	$x = getBestSupportedMimeType([
-		'application/activity+json',
 		'application/ld+json;profile="https://www.w3.org/ns/activitystreams"',
+		'application/activity+json',
 		'application/ld+json;profile="http://www.w3.org/ns/activitystreams"'
 	]);
 
@@ -220,21 +273,22 @@ function pubcrawl_channel_mod_init($x) {
 			http_status_exit(404, 'Not found');
 
 		$x = array_merge(['@context' => [
-			'https://www.w3.org/ns/activitystreams',
+			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
-			z_root() . '/apschema'
+			z_root() . ZOT_APSCHEMA_REV
 			]], asencode_person($chan));
 
 
 		$headers = [];
-		$headers['Content-Type'] = 'application/activity+json' ;
+		$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
 
 		$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
-		$ret = json_encode($x);
+		$ret = json_encode($x, JSON_UNESCAPED_SLASHES);
 		$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 		$headers['Digest'] = 'SHA-256=' . $hash;  
 		\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
 		echo $ret;
+		logger('channel: ' . $ret, LOGGER_DATA);
 		killme();
 	}
 }
@@ -282,14 +336,15 @@ function pubcrawl_notifier_process(&$arr) {
 	$prv_recips = $arr['env_recips'];
 
 	$msg = array_merge(['@context' => [
-		'https://www.w3.org/ns/activitystreams',
+		ACTIVITYSTREAMS_JSONLD_REV,
 		'https://w3id.org/security/v1',
-		z_root() . '/apschema'
+		z_root() . ZOT_APSCHEMA_REV
 	]], asencode_activity($target_item));
 	
 	$msg['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($msg,$arr['channel']);
 
-	$jmsg = json_encode($msg);
+	$jmsg = json_encode($msg, JSON_UNESCAPED_SLASHES);
+
 
 	if($prv_recips) {
 		$hashes = array();
@@ -330,25 +385,43 @@ function pubcrawl_notifier_process(&$arr) {
 
 		// public message
 
-		$r = q("select * from xchan left join hubloc on xchan_hash = hubloc_hash where hubloc_url = '%s' and xchan_network = 'activitypub' ",
-			dbesc($arr['hub']['hubloc_url'])
-		);
+		// See if we can deliver all of them at once
 
-		if(! $r) {
-			logger('activitypub_process_outbound: no recipients');
-			return;
-		}
-
-		foreach($r as $contact) {
-
-			$single = deliverable_singleton($arr['channel']['channel_id'],$contact);
-
-			if($single) {
-				$qi = pubcrawl_queue_message($jmsg,$arr['channel'],$contact,$target_item['mid']);
-				if($qi)
-					$arr['queued'][] = $qi;
+		$x = get_xconfig($arr['hub']['hubloc_hash'],'activitypub','collections');
+		if($x && $x['sharedInbox']) {
+			logger('using publicInbox delivery for ' . $arr['hub']['hubloc_url'], LOGGER_DEBUG);
+			$contact['hubloc_callback'] = $x['sharedInbox'];
+			$qi = pubcrawl_queue_message($jmsg,$arr['channel'],$contact,$target_item['mid']);
+			if($qi) {
+				$arr['queued'][] = $qi;
 			}
-		}	
+		}
+		else {
+
+			$r = q("select * from xchan left join hubloc on xchan_hash = hubloc_hash where hubloc_url = '%s' and xchan_network = 'activitypub' ",
+				dbesc($arr['hub']['hubloc_url'])
+			);
+
+			if(! $r) {
+				logger('activitypub_process_outbound: no recipients');
+				return;
+			}
+
+		
+
+
+
+			foreach($r as $contact) {
+
+				$single = deliverable_singleton($arr['channel']['channel_id'],$contact);
+
+				if($single) {
+					$qi = pubcrawl_queue_message($jmsg,$arr['channel'],$contact,$target_item['mid']);
+					if($qi)
+						$arr['queued'][] = $qi;
+				}
+			}	
+		}
 	}
 	
 	return;
@@ -368,7 +441,7 @@ function pubcrawl_queue_message($msg,$sender,$recip,$message_id = '') {
 	$dest_url = $recip['hubloc_callback'];
 
     logger('URL: ' . $dest_url, LOGGER_DEBUG);
-	logger('DATA: ' . $msg, LOGGER_DATA);
+	logger('DATA: ' . jindent($msg), LOGGER_DATA);
 
     if(intval(get_config('system','activitypub_test')) || intval(get_pconfig($sender['channel_id'],'system','activitypub_test'))) {
         logger('test mode - delivery disabled');
@@ -422,45 +495,58 @@ function pubcrawl_connection_remove(&$x) {
 
 	$orig_activity = get_abconfig($recip[0]['abook_channel'],$recip[0]['xchan_hash'],'pubcrawl','follow_id');
 
-	if($orig_activity) {
+	if($orig_activity && $recip[0]['abook_pending']) {
 
 		// was never approved
 
 		$msg = array_merge(['@context' => [
-				'https://www.w3.org/ns/activitystreams',
+				ACTIVITYSTREAMS_JSONLD_REV,
 				'https://w3id.org/security/v1',
-				z_root() . '/apschema'
+				z_root() . ZOT_APSCHEMA_REV
 
 			]], 
 			[
-				'id' => z_root() . '/follow/' . $x['recipient']['abook_id'],
-				'type' => 'Reject',
+				'id'    => z_root() . '/follow/' . $recip[0]['abook_id'] . '#reject',
+				'type'  => 'Reject',
 				'actor' => asencode_person($channel),
-				'object' => [
-					'type' => 'Follow',
-					'id' => $orig_activity
-				]
+				'object'     => [
+					'type'   => 'Follow',
+					'id'     => $orig_activity,
+					'actor'  => $recip[0]['xchan_hash'],
+					'object' => asencode_person($channel)
+				],
+				'to' => [ $recip[0]['xchan_hash'] ]
 		]);
 		del_abconfig($recip[0]['abook_channel'],$recip[0]['xchan_hash'],'pubcrawl','follow_id');
 
 	}
 	else {
+
+		// send an unfollow
+
 		$msg = array_merge(['@context' => [
-				'https://www.w3.org/ns/activitystreams',
+				ACTIVITYSTREAMS_JSONLD_REV,
 				'https://w3id.org/security/v1',
-				z_root() . '/apschema'
+				z_root() . ZOT_APSCHEMA_REV
 			]], 
 			[
-				'id' => z_root() . '/follow/' . $recip[0]['abook_id'] . '#Undo',
-				'type' => 'Undo',
+				'id'    => z_root() . '/follow/' . $recip[0]['abook_id'] . '#Undo',
+				'type'  => 'Undo',
 				'actor' => asencode_person($channel),
-				'object' => z_root() . '/follow/' . $recip[0]['abook_id']
-		]);
+				'object'     => [
+					'id'     => z_root() . '/follow/' . $recip[0]['abook_id'],
+					'type'   => 'Follow',
+					'actor'  => asencode_person($channel),
+					'object' => $recip[0]['xchan_hash']
+				],
+				'to' => [ $recip[0]['xchan_hash'] ]
+			]
+		);
 	}
 
 	$msg['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($msg,$channel);
 
-	$jmsg = json_encode($msg);
+	$jmsg = json_encode($msg, JSON_UNESCAPED_SLASHES);
 
 	// is $contact connected with this channel - and if the channel is cloned, also on this hub?
 	$single = deliverable_singleton($channel['channel_id'],$recip[0]);
@@ -489,46 +575,76 @@ function pubcrawl_permissions_create(&$x) {
 		return;
 	}
 
-	// we currently are not handling send of reject follow activities; this is permitted by protocol
+	$msg = array_merge(['@context' => [
+			ACTIVITYSTREAMS_JSONLD_REV,
+			'https://w3id.org/security/v1'
+		]], 
+		[
+			'id'     => z_root() . '/follow/' . $x['recipient']['abook_id'],
+			'type'   => 'Follow',
+			'actor'  => asencode_person($x['sender']),
+			'object' => $x['recipient']['xchan_url'],
+			'to'     => [ $x['recipient']['xchan_hash'] ]
+	]);
 
-	$accept = get_abconfig($x['recipient']['abook_channel'],$x['recipient']['xchan_hash'],'pubcrawl','follow_id');
-
-	if($accept) {
-		$msg = array_merge(['@context' => [
-				'https://www.w3.org/ns/activitystreams',
-				'https://w3id.org/security/v1',
-				z_root() . '/apschema'
-			]], 
-			[
-				'id' => z_root() . '/follow/' . $x['recipient']['abook_id'],
-				'type' => 'Accept',
-				'actor' => asencode_person($x['sender']),
-				'object' => [
-					'type' => 'Follow',
-					'id' => $accept
-				]
-		]);
-		del_abconfig($x['recipient']['abook_channel'],$x['recipient']['xchan_hash'],'pubcrawl','follow_id');
-
-	}
-	else {
-		$msg = array_merge(['@context' => [
-				'https://www.w3.org/ns/activitystreams',
-				'https://w3id.org/security/v1'
-			]], 
-			[
-				'id' => z_root() . '/follow/' . $x['recipient']['abook_id'],
-				'type' => 'Follow',
-				'actor' => asencode_person($x['sender']),
-				'object' => $x['recipient']['xchan_url']
-		]);
-	}
 
 	$msg['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($msg,$x['sender']);
 
-	$jmsg = json_encode($msg);
+	$jmsg = json_encode($msg, JSON_UNESCAPED_SLASHES);
 
-	// @fixme - sign this message
+	// is $contact connected with this channel - and if the channel is cloned, also on this hub?
+	$single = deliverable_singleton($x['sender']['channel_id'],$x['recipient']);
+
+	$h = q("select * from hubloc where hubloc_hash = '%s' limit 1",
+		dbesc($x['recipient']['xchan_hash'])
+	);
+
+	if($single && $h) {
+		$qi = pubcrawl_queue_message($jmsg,$x['sender'],$h[0]);
+		if($qi)
+			$x['deliveries'] = $qi;
+	}
+		
+	$x['success'] = true;
+
+}
+
+
+function pubcrawl_permissions_accept(&$x) {
+
+	// send an accept activity to the followee's inbox
+
+	if($x['recipient']['xchan_network'] !== 'activitypub') {
+		return;
+	}
+
+	// we currently are not handling send of reject follow activities; this is permitted by protocol
+
+	$accept = get_abconfig($x['recipient']['abook_channel'],$x['recipient']['xchan_hash'],'pubcrawl','their_follow_id');
+	if(! $accept)
+		return;
+
+	$msg = array_merge(['@context' => [
+			ACTIVITYSTREAMS_JSONLD_REV,
+			'https://w3id.org/security/v1',
+			z_root() . ZOT_APSCHEMA_REV
+		]], 
+		[
+			'id'     => z_root() . '/follow/' . $x['recipient']['abook_id'],
+			'type'   => 'Accept',
+			'actor'  => asencode_person($x['sender']),
+			'object' => [
+				'type'   => 'Follow',
+				'id'     => $accept,
+				'actor'  => $x['recipient']['xchan_hash'],
+				'object' => z_root() . '/channel/' . $x['sender']['channel_address']
+			],
+			'to' => [ $x['recipient']['xchan_hash'] ]
+	]);
+
+	$msg['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($msg,$x['sender']);
+
+	$jmsg = json_encode($msg, JSON_UNESCAPED_SLASHES);
 
 	// is $contact connected with this channel - and if the channel is cloned, also on this hub?
 	$single = deliverable_singleton($x['sender']['channel_id'],$x['recipient']);
@@ -560,18 +676,19 @@ function pubcrawl_profile_mod_init($x) {
 
 
 		$x = [
-			'@context' => [ 'https://www.w3.org/ns/activitystreams',
+			'@context' => [ 
+				ACTIVITYSTREAMS_JSONLD_REV,
 				'https://w3id.org/security/v1',
-				z_root() . '/apschema'
+				z_root() . ZOT_APSCHEMA_REV
 			],
 			'type' => 'Profile',
 			'describes' => asencode_person($chan)
 		];
 				
 		$headers = [];
-		$headers['Content-Type'] = 'application/activity+json' ;
+		$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
 		$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
-		$ret = json_encode($x);
+		$ret = json_encode($x, JSON_UNESCAPED_SLASHES);
 		$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 		$headers['Digest'] = 'SHA-256=' . $hash;  
 		\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
@@ -613,7 +730,7 @@ function pubcrawl_item_mod_init($x) {
 
 		// Wrong object type
 
-		if(activity_obj_mapper($items[0]['obj_type']) !== 'Note') {
+		if(! in_array(activity_obj_mapper($items[0]['obj_type']), [ 'Note', 'Article' ])) {
 			http_status_exit(418, "I'm a teapot"); 
 		}
 
@@ -627,16 +744,16 @@ function pubcrawl_item_mod_init($x) {
 
 
 		$x = array_merge(['@context' => [
-			'https://www.w3.org/ns/activitystreams',
+			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
-			z_root() . '/apschema'
+			z_root() . ZOT_APSCHEMA_REV
 			]], asencode_item($items[0]));
 
 
 		$headers = [];
-		$headers['Content-Type'] = 'application/activity+json' ;
+		$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
 		$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
-		$ret = json_encode($x);
+		$ret = json_encode($x, JSON_UNESCAPED_SLASHES);
 		$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 		$headers['Digest'] = 'SHA-256=' . $hash;  
 		\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
@@ -668,9 +785,9 @@ function pubcrawl_thing_mod_init($x) {
 			http_status_exit(404, 'Not found');
 
 		$x = array_merge(['@context' => [
-			'https://www.w3.org/ns/activitystreams',
+			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
-			z_root() . '/apschema'
+			z_root() . ZOT_APSCHEMA_REV
 			]],
 			[ 
 				'type' => 'Object',
@@ -684,9 +801,9 @@ function pubcrawl_thing_mod_init($x) {
 
 
 		$headers = [];
-		$headers['Content-Type'] = 'application/activity+json' ;
+		$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
 		$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
-		$ret = json_encode($x);
+		$ret = json_encode($x, JSON_UNESCAPED_SLASHES);
 		$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 		$headers['Digest'] = 'SHA-256=' . $hash;  
 		\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
@@ -709,9 +826,9 @@ function pubcrawl_locs_mod_init($x) {
 			http_status_exit(404, 'Not found');
 
 		$x = array_merge(['@context' => [
-			'https://www.w3.org/ns/activitystreams',
+			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
-			z_root() . '/apschema'
+			z_root() . ZOT_APSCHEMA_REV
 			]],
 			[ 
 				'type' => 'nomadicHubs',
@@ -734,9 +851,9 @@ function pubcrawl_locs_mod_init($x) {
 		}
 
 		$headers = [];
-		$headers['Content-Type'] = 'application/activity+json' ;
+		$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
 		$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
-		$ret = json_encode($x);
+		$ret = json_encode($x, JSON_UNESCAPED_SLASHES);
 		$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 		$headers['Digest'] = 'SHA-256=' . $hash;  
 		\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
@@ -765,22 +882,22 @@ function pubcrawl_follow_mod_init($x) {
 			http_status_exit(404, 'Not found');
 
 		$x = array_merge(['@context' => [
-				'https://www.w3.org/ns/activitystreams',
+				ACTIVITYSTREAMS_JSONLD_REV,
 				'https://w3id.org/security/v1',
-				z_root() . '/apschema'
+				z_root() . ZOT_APSCHEMA_REV
 			]], 
 			[
-				'id' => z_root() . '/follow/' . $r[0]['abook_id'],
-				'type' => 'Follow',
-				'actor' => asencode_person($chan),
+				'id'     => z_root() . '/follow/' . $r[0]['abook_id'],
+				'type'   => 'Follow',
+				'actor'  => asencode_person($chan),
 				'object' => $r[0]['xchan_url']
 		]);
 				
 
 		$headers = [];
-		$headers['Content-Type'] = 'application/activity+json' ;
+		$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
 		$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
-		$ret = json_encode($x);
+		$ret = json_encode($x, JSON_UNESCAPED_SLASHES);
 		$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 		$headers['Digest'] = 'SHA-256=' . $hash;  
 		\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
@@ -806,7 +923,7 @@ function pubcrawl_queue_deliver(&$b) {
 		$retries = 0;
 
 		$headers = [];
-		$headers['Content-Type'] = 'application/activity+json';
+		$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
 		$ret = $outq['outq_msg'];
 		$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 		$headers['Digest'] = 'SHA-256=' . $hash;  

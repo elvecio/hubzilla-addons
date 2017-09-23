@@ -36,17 +36,17 @@ class Activity extends \Zotlabs\Web\Controller {
 			$chan = channelx_by_n($items[0]['uid']);
 
 			$x = array_merge(['@context' => [
-				'https://www.w3.org/ns/activitystreams',
+				ACTIVITYSTREAMS_JSONLD_REV,
 				'https://w3id.org/security/v1',
-				z_root() . '/apschema'
+				z_root() . ZOT_APSCHEMA_REV
 				]], asencode_activity($items[0]));
 
 
 			$headers = [];
-			$headers['Content-Type'] = 'application/activity+json' ;
+			$headers['Content-Type'] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' ;
 
 			$x['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($x,$chan);
-			$ret = json_encode($x);
+			$ret = json_encode($x, JSON_UNESCAPED_SLASHES);
 			$hash = \Zotlabs\Web\HTTPSig::generate_digest($ret,false);
 			$headers['Digest'] = 'SHA-256=' . $hash;  
 			\Zotlabs\Web\HTTPSig::create_sig('',$headers,$chan['channel_prvkey'],z_root() . '/channel/' . $chan['channel_address'],true);
