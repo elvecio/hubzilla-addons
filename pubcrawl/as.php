@@ -238,11 +238,10 @@ function asdecode_taxonomy($item) {
 
 			switch($t['type']) {
 				case 'Hashtag':
-					$ret[] = [ 'ttype' => TERM_HASHTAG, 'url' => $t['id'], 'term' => ((substr($t['name'],0,1) === '#') ? substr($t['name'],1) : $t['name']) ];
+					$ret[] = [ 'ttype' => TERM_HASHTAG, 'url' => $t['href'], 'term' => ((substr($t['name'],0,1) === '#') ? substr($t['name'],1) : $t['name']) ];
 					break;
 
 				case 'Mention':
-TERM_MENTION:
 					$ret[] = [ 'ttype' => TERM_MENTION, 'url' => $t['href'], 'term' => ((substr($t['name'],0,1) === '@') ? substr($t['name'],1) : $t['name']) ];
 					break;
 
@@ -454,13 +453,13 @@ function asencode_person($p) {
 	if($p['xchan_addr'] && strpos($p['xchan_addr'],'@'))
 		$ret['preferredUsername'] = substr($p['xchan_addr'],0,strpos($p['xchan_addr'],'@'));
 	$ret['name']  = $p['xchan_name'];
-	$ret['icon']  = [ 
+	$ret['icon']  = [
 		'type'      => 'Image',
 		'mediaType' => (($p['xchan_photo_mimetype']) ? $p['xchan_photo_mimetype'] : 'image/png' ),
 		'url'       => $p['xchan_photo_l'],
 		'height'    => 300,
 		'width'     => 300,
-	];
+        ];
 	$ret['url'] = [
 		'type'      => 'Link',
 		'mediaType' => 'text/html',
@@ -973,6 +972,15 @@ function as_create_action($channel,$observer_hash,$act) {
 
 }
 
+function as_announce_action($channel,$observer_hash,$act) {
+
+	if(in_array($act->type, [ 'Announce' ])) {
+		as_announce_note($channel,$observer_hash,$act);
+	}
+
+}
+
+
 function as_like_action($channel,$observer_hash,$act) {
 
 	if(in_array($act->obj['type'], [ 'Note', 'Article' ])) {
@@ -1116,6 +1124,112 @@ function as_create_note($channel,$observer_hash,$act) {
 
 }
 
+function as_announce_note($channel,$observer_hash,$act) {
+
+	$s = [];
+
+	if(! perm_is_allowed($channel['channel_id'],$observer_hash,'send_stream')) {
+		logger('no permission');
+		return;
+	}
+
+	$content = as_get_content($act->obj);
+
+	if(! $content) {
+		logger('no content');
+		return;
+	}
+
+	$s['owner_xchan'] = $s['author_xchan'] = $observer_hash;
+
+	$s['aid'] = $channel['channel_account_id'];
+	$s['uid'] = $channel['channel_id'];
+	$s['mid'] = urldecode($act->obj['id']);
+
+	if(! $s['created'])
+		$s['created'] = datetime_convert();
+
+	if(! $s['edited'])
+		$s['edited'] = $s['created'];
+
+
+	$s['parent_mid'] = $s['mid'];
+
+	$s['verb']     = ACTIVITY_POST;
+	$s['obj_type'] = ACTIVITY_OBJ_NOTE;
+	$s['app']      = t('ActivityPub');
+
+	$abook = q("select * from abook where abook_xchan = '%s' and abook_channel = %d limit 1",
+		dbesc($observer_hash),
+		intval($channel['channel_id'])
+	);
+
+	if($abook) {
+		if(! post_is_importable($s,$abook[0])) {
+			logger('post is filtered');
+			return;
+		}
+	}
+
+	if($act->obj['conversation']) {
+		set_iconfig($s,'ostatus','conversation',$act->obj['conversation'],1);
+	}
+
+	$a = asdecode_taxonomy($act->obj);
+	if($a) {
+		$s['term'] = $a;
+	}
+
+	$a = asdecode_attachment($act->obj);
+	if($a) {
+		$s['attach'] = $a;
+	}
+
+	$body = "[share author='" . urlencode($act->sharee['xchan_name']) . 
+		"' profile='" . $act->sharee['xchan_url'] . 
+		"' avatar='" . $act->sharee['xchan_photo_s'] . 
+		"' link='" . $act->obj['url'] . 
+		"' posted='" . $act->obj['published'] . 
+		"' message_id='" . $act->obj['id'] . 
+	"']";
+
+	if($content['name'])
+		$body .= as_bb_content($content,'name') . "\r\n";
+
+	$body .= as_bb_content($content,'content');
+
+	if($act->obj['type'] === 'Note' && $s['attach']) {
+		foreach($s['attach'] as $img) {
+			if(strpos($img['type'],'image') !== false) {
+				$body .= "\n\n" . '[img]' . $img['href'] . '[/img]';
+			}
+		}
+	}
+
+	$body .= "[/share]";
+
+	$s['title']    = as_bb_content($content,'name');
+	$s['body']     = $body;
+
+	set_iconfig($s,'activitypub','recips',$act->raw_recips);
+
+	$r = q("select created, edited from item where mid = '%s' and uid = %d limit 1",
+		dbesc($s['mid']),
+		intval($s['uid'])
+	);
+	if($r) {
+		if($s['edited'] > $r[0]['edited']) {
+			$x = item_store_update($s);
+		}
+		else {
+			return;
+		}
+	}
+	else {
+		$x = item_store($s);
+	}
+
+}
 
 function as_like_note($channel,$observer_hash,$act) {
 

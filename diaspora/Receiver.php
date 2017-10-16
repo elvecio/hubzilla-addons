@@ -321,6 +321,35 @@ class Diaspora_Receiver {
 			}
 		}
 
+		$cnt = preg_match_all('/\!\[url=(.*?)\](.*?)\[\/url\]/ism',$body,$matches,PREG_SET_ORDER);
+		if($cnt) {
+			foreach($matches as $mtch) {
+				$datarray['term'][] = [
+					'uid'   => $this->importer['channel_id'],
+					'ttype' => TERM_FORUM,
+					'otype' => TERM_OBJ_POST,
+					'term'  => $mtch[2],
+					'url'   => $mtch[1]
+				];
+			}
+		}
+
+		$cnt = preg_match_all('/\!\[zrl=(.*?)\](.*?)\[\/zrl\]/ism',$body,$matches,PREG_SET_ORDER);
+		if($cnt) {
+			foreach($matches as $mtch) {
+				// don't include plustags in the term
+				$term = ((substr($mtch[2],-1,1) === '+') ? substr($mtch[2],0,-1) : $mtch[2]);
+				$datarray['term'][] = [
+					'uid'   => $this->importer['channel_id'],
+					'ttype' => TERM_FORUM,
+					'otype' => TERM_OBJ_POST,
+					'term'  => $term,
+					'url'   => $mtch[1]
+				];
+			}
+		}
+
+
 		$plink = service_plink($xchan,$guid);
 
 		if(is_array($raw_location)) {
@@ -1273,9 +1302,6 @@ class Diaspora_Receiver {
 
 		$parent_author_signature = $this->get_property('parent_author_signature');
 
-		// likes on comments not supported here and likes on photos not supported by Diaspora
-
-
 		$contact = diaspora_get_contact_by_handle($this->importer['channel_id'],$this->msg['author']);
 		if(! $contact) {
 			logger('diaspora_like: cannot find contact: ' . $this->msg['author'] . ' for channel ' . $this->importer['channel_name']);
@@ -1288,7 +1314,7 @@ class Diaspora_Receiver {
 			return 202;
 		}
 
-		$r = q("SELECT * FROM item WHERE uid = %d AND mid = '%s' LIMIT 1",
+		$r = q("SELECT * FROM item WHERE uid = %d AND mid = '%s' and parent_mid = mid LIMIT 1",
 			intval($this->importer['channel_id']),
 			dbesc($parent_guid)
 		);
@@ -1431,7 +1457,12 @@ class Diaspora_Receiver {
 		$arr['uid'] = $this->importer['channel_id'];
 		$arr['aid'] = $this->importer['channel_account_id'];
 		$arr['mid'] = $guid;
+		
 		$arr['parent_mid'] = $parent_item['mid'];
+
+		if($parent_item['mid'] !== $parent_guid)
+			$arr['thr_parent'] = $parent_guid;
+
 		$arr['owner_xchan'] = $parent_item['owner_xchan'];
 		$arr['author_xchan'] = $person['xchan_hash'];
 

@@ -30,7 +30,7 @@ function hubwall_post(&$a) {
 	if(! $text)
 		return;
 
-	$sender_name  = sprintf( t('$1%s Administrator'), \Zotlabs\Lib\System::get_site_name());
+	$sender_name  = sprintf( t('%s Administrator'), \Zotlabs\Lib\System::get_site_name());
 	$sender_email = $_REQUEST['sender'];
 	$subject      = $_REQUEST['subject'];
 

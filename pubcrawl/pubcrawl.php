@@ -36,12 +36,22 @@ function pubcrawl_load() {
 		'feature_settings'           => 'pubcrawl_feature_settings',
 		'channel_links'              => 'pubcrawl_channel_links',
 		'personal_xrd'               => 'pubcrawl_personal_xrd',
-		'queue_deliver'              => 'pubcrawl_queue_deliver'
+		'queue_deliver'              => 'pubcrawl_queue_deliver',
+		'import_author'              => 'pubcrawl_import_author',
+		'channel_protocols'          => 'pubcrawl_channel_protocols'
 	]);
 }
 
 function pubcrawl_unload() {
 	Zotlabs\Extend\Hook::unregister_by_file('addon/pubcrawl/pubcrawl.php');
+}
+
+
+function pubcrawl_channel_protocols(&$b) {
+
+	if(intval(get_pconfig($b['channel_id'],'system','activitypub_allowed')))
+		$b['protocols'][] = 'activitypub';
+
 }
 
 
@@ -115,7 +125,7 @@ function pubcrawl_discover_channel_webfinger(&$b) {
         foreach($x['links'] as $link) {
             if(array_key_exists('rel',$link) && array_key_exists('type',$link)) {
                 if($link['rel'] === 'self' && ($link['type'] === 'application/activity+json' || strpos($link['type'],'ld+json') !== false)) {
-					$url = $x['href'];
+					$url = $link['href'];
                 }
             }
         }
@@ -144,7 +154,7 @@ function pubcrawl_discover_channel_webfinger(&$b) {
 		$person_obj = $AS->data;
 	}
 	elseif($AS->obj && $AS->obj['type'] === 'Person') {
-		$person_obj = $AS->object;
+		$person_obj = $AS->obj;
 	}
 	else {
 		return;
@@ -153,6 +163,47 @@ function pubcrawl_discover_channel_webfinger(&$b) {
 	as_actor_store($url,$person_obj);
 
 	$b['success'] = true;
+
+}
+
+function pubcrawl_import_author(&$b) {
+
+	if(! $b['url'])
+		return;
+
+	$url = $b['url'];
+
+	// let somebody upgrade from an 'unknown' connection which has no xchan_addr
+	$r = q("select xchan_hash, xchan_url, xchan_name, xchan_photo_s from xchan where xchan_url = '%s' limit 1",
+		dbesc($url)
+	);
+	if(! $r) {
+		$r = q("select xchan_hash, xchan_url, xchan_name, xchan_photo_s from xchan where xchan_hash = '%s' limit 1",
+			dbesc($url)
+		);
+	}
+	if($r) {
+		logger('in_cache: ' . $r[0]['xchan_name'], LOGGER_DATA);
+		return $r[0];
+	}
+
+	$x = discover_by_webbie($url);
+
+	if($x) {
+		$r = q("select xchan_hash, xchan_url, xchan_name, xchan_photo_s from xchan where xchan_url = '%s' limit 1",
+			dbesc($url)
+		);
+		if(! $r) {
+			$r = q("select xchan_hash, xchan_url, xchan_name, xchan_photo_s from xchan where xchan_hash = '%s' limit 1",
+				dbesc($url)
+			);
+		}
+		if($r) {
+			return $r[0];
+		}
+	}
+
+	return;
 
 }
 

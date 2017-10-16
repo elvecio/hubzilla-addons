@@ -411,17 +411,14 @@ function diaspora_send_upstream($item,$owner,$contact,$public_batch = false,$upl
 		return;
 	}
 
-	if((($item['verb'] === ACTIVITY_LIKE) || ($item['verb'] === ACTIVITY_DISLIKE)) 
-		&& ($item['obj_type'] === ACTIVITY_OBJ_NOTE || $item['obj_type'] === ACTIVITY_OBJ_COMMENT)) {
+	if(activity_match($item['verb'],[ ACTVITY_LIKE, ACTIVITY_DISLIKE ])
+		&& activity_match($item['obj_type'],[ ACTIVITY_OBJ_NOTE, ACTIVITY_OBJ_COMMENT ])) {
 		$conv_like = true;
 		if(($item['thr_parent']) && ($item['thr_parent'] != $item['parent_mid']))
 			$sub_like = true;
 	}
 
 	if($sub_like) {		
-
-		return; // @FIXME not yet supported in Diaspora
-
 		$p = q("select mid, parent_mid from item where mid = '%s' and uid = %d limit 1",
 			dbesc($item['thr_parent']),
 			intval($item['uid'])
@@ -500,17 +497,14 @@ function diaspora_send_downstream($item,$owner,$contact,$public_batch = false) {
 	$conv_like = false;
 	$sub_like  = false;
 
-	if((($item['verb'] === ACTIVITY_LIKE) || ($item['verb'] === ACTIVITY_DISLIKE)) 
-		&& ($item['obj_type'] === ACTIVITY_OBJ_NOTE || $item['obj_type'] === ACTIVITY_OBJ_COMMENT)) {
+	if(activity_match($item['verb'], [ ACTIVITY_LIKE, ACTIVITY_DISLIKE ]) 
+		&& activity_match($item['obj_type'],[ ACTIVITY_OBJ_NOTE, ACTIVITY_OBJ_COMMENT ])) {
 		$conv_like = true;
 		if(($item['thr_parent']) && ($item['thr_parent'] != $item['parent_mid']))
 			$sub_like = true;
 	}
 
 	if($sub_like) {		
-
-		return; // @FIXME not yet supported in Diaspora
-
 		$p = q("select mid, parent_mid from item where mid = '%s' and uid = %d limit 1",
 			dbesc($item['thr_parent']),
 			intval($item['uid'])

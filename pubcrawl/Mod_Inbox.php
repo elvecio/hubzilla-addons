@@ -32,21 +32,36 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 		$AS = new \Zotlabs\Lib\ActivityStreams($data);
 
-		//		logger('debug: ' . $AS->debug());
+		//logger('debug: ' . $AS->debug());
 
 		if(! $AS->is_valid())
 			return;
-
-		if(is_array($AS->actor) && array_key_exists('id',$AS->actor))
-			as_actor_store($AS->actor['id'],$AS->actor);
-
-
 
 		$observer_hash = $AS->actor['id'];
 		if(! $observer_hash)
 			return;
 
+		if(is_array($AS->actor) && array_key_exists('id',$AS->actor))
+			as_actor_store($AS->actor['id'],$AS->actor);
 
+		if($AS->type == 'Announce' && is_array($AS->obj) && array_key_exists('attributedTo',$AS->obj)) {
+
+			$arr = [
+				'url' => $AS->obj['attributedTo']
+			];
+
+			$x = pubcrawl_import_author($arr);
+
+			if($x) {
+				$AS->sharee = $x;
+			}
+			else {
+				//TODO: what do we do with sharees from other networks (for now mainly gnusocial)?
+				logger('got announce activity but could not import share author');
+				return;
+			}
+
+		}
 
 		if($is_public) {
 
@@ -54,9 +69,10 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 			if($parent) {
 				//this is a comment - deliver to everybody who owns the parent
-				$channels = q("SELECT * from channel where channel_id in ( SELECT uid from item where ( mid = '%s' || mid = '%s' ) and parent_mid = mid )",
+				$channels = q("SELECT * from channel where channel_id in ( SELECT uid from item where  ( mid = '%s' || mid = '%s' ) and parent_mid = mid ) and channel_address != '%s'",
 					dbesc($parent),
-					dbesc(basename($parent))
+					dbesc(basename($parent)),
+					dbesc(str_replace(z_root() . '/channel/', '', $observer_hash))
 				);
 			}
 			else {
@@ -141,10 +157,11 @@ class Inbox extends \Zotlabs\Web\Controller {
 				case 'Delete':
 				case 'Add':
 				case 'Remove':
-				case 'Announce':
-
-
 					break;
+
+				case 'Announce':
+					as_announce_action($channel,$observer_hash,$AS);
+					continue;
 				default:
 					break;
 

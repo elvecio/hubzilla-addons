@@ -47,7 +47,8 @@ function diaspora_load() {
 		'author_is_pmable'            => 'diaspora_author_is_pmable',
 		'can_comment_on_post'         => 'diaspora_can_comment_on_post',
 		'queue_deliver'               => 'diaspora_queue_deliver',
-		'webfinger'                   => 'diaspora_webfinger'
+		'webfinger'                   => 'diaspora_webfinger',
+		'channel_protocols'           => 'diaspora_channel_protocols'
 	]);
 
 	diaspora_init_relay();
@@ -118,6 +119,14 @@ function diaspora_well_known(&$b) {
 		killme();			
 
 	}
+}
+
+
+function diaspora_channel_protocols(&$b) {
+
+	if(intval(get_pconfig($b['channel_id'],'system','diaspora_allowed')))
+		$b['protocols'][] = 'diaspora';
+
 }
 
 function diaspora_personal_xrd(&$b) {
@@ -822,20 +831,21 @@ function diaspora_post_local(&$item) {
 		$handle = channel_reddress($author);
 		$meta = null;
 
-		if($item['verb'] === ACTIVITY_LIKE || $item['verb'] === ACTIVITY_DISLIKE) {
-			if($item['thr_parent'] === $item['parent_mid'] && $item['obj_type'] == ACTIVITY_OBJ_NOTE) {
+		if(activity_match($item['verb'], [ ACTIVITY_LIKE, ACTIVITY_DISLIKE ])) {
+			if(activity_match($item['obj_type'], [ ACTIVITY_OBJ_NOTE, ACTIVITY_OBJ_ACTIVITY, ACTIVITY_OBJ_COMMENT ])){
 				$meta = [
 					'positive'        => (($item['verb'] === ACTIVITY_LIKE) ? 'true' : 'false'),
 					'guid'            => $item['mid'],
-					'parent_guid'     => $item['parent_mid'],
 				];
 				if(defined('DIASPORA_V2')) {
 					$meta['author']      = $handle;
-					$meta['parent_type'] = 'Post';
+					$meta['parent_type'] = (($item['thr_parent'] === $item['parent_mid']) ? 'Post' : 'Comment');
+					$meta['parent_guid'] = $item['thr_parent'];
 				}
 				else {
 					$meta['diaspora_handle'] = $handle;
 					$meta['target_type']     = 'Post';
+					$meta['parent_guid']     = $item['parent_mid'];
 				}
 			}
 		}
@@ -1150,6 +1160,14 @@ function diaspora_queue_deliver(&$b) {
 					}
 				}
 				if($piled_up) {
+
+					// add a pre-deliver interval, this should not be necessary
+
+					$interval = ((get_config('system','delivery_interval') !== false)
+						? intval(get_config('system','delivery_interval')) : 2 );
+					if($interval)
+						@time_sleep_until(microtime(true) + (float) $interval);
+
 					do_delivery($piled_up);
 				}
 			}
