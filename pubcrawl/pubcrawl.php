@@ -370,6 +370,13 @@ function pubcrawl_notifier_process(&$arr) {
 		if(strpos($arr['target_item']['postopts'],'nopub') !== false) {
 			return;
 		}
+
+		// don't forward guest comments to activitypub at the moment
+
+		if(strpos($arr['target_item']['author']['xchan_url'],z_root() . '/guest/') !== false) {
+			return;
+		}
+		
 	}
 
 	$allowed = get_pconfig($arr['channel']['channel_id'],'system','activitypub_allowed');
@@ -459,9 +466,6 @@ function pubcrawl_notifier_process(&$arr) {
 			}
 
 		
-
-
-
 			foreach($r as $contact) {
 
 				$single = deliverable_singleton($arr['channel']['channel_id'],$contact);

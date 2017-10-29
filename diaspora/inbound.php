@@ -237,7 +237,12 @@ function diaspora_decode($importer,$xml,$format) {
 	if($format !== 'legacy') {
 		$children = $basedom->children('http://salmon-protocol.org/ns/magic-env');
 		$public = true;
-		$author_link = str_replace('acct:','',base64url_decode($children->sig[0]->attributes()->key_id[0]));
+		if($children->sig && $children->sig[0]->attributes() && $children->sig[0]->attributes()->key_id) {
+			$author_link = str_replace('acct:','',base64url_decode($children->sig[0]->attributes()->key_id[0]));
+		}
+		else {
+			$author_link = '';
+		}
 
 		/**
 			SimpleXMLElement Object

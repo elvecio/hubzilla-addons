@@ -161,6 +161,16 @@ function diaspora_webfinger(&$b) {
 		'href' => z_root()
 	];
 
+	// Diaspora requires a salmon link. 
+	// Use this *only* if the gnusoc plugin is not installed and enabled
+
+	if((! in_array('gnusoc',\App::$plugins)) || (! intval(get_pconfig($b['channel']['channel_id'],'system','gnusoc_allowed')))) {
+		$b['result']['links'][] = [ 
+			'rel'  => 'salmon',
+			'href' => z_root() . '/receive/users/' . $b['channel']['channel_guid'] . str_replace('.','',App::get_hostname())
+		];
+	}
+
 }
 
 

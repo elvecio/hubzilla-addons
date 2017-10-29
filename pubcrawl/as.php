@@ -432,7 +432,8 @@ function as_map_acl($i) {
 		$strict = get_config('activitypub','compliance');
 		$sql_extra = (($strict) ? " and xchan_network = 'activitypub' " : '');
 
-		$details = q("select xchan_url from xchan where xchan_hash in (" . implode(',',$recipients) . ") $sql_extra");
+		$details = q("select xchan_url from xchan where xchan_hash in (" . implode(',',$x) . ") $sql_extra");
+
 		if($details) {
 			foreach($details as $d) {
 				$list[] = $d['xchan_url'];
@@ -1104,6 +1105,9 @@ function as_create_note($channel,$observer_hash,$act) {
 		}
 	}
 
+	if($act->recips && (! in_array(ACTIVITY_PUBLIC_INBOX,$act->recips)))
+		$s['item_private'] = 1;
+
 	set_iconfig($s,'activitypub','recips',$act->raw_recips);
 
 	$r = q("select created, edited from item where mid = '%s' and uid = %d limit 1",
@@ -1210,6 +1214,9 @@ function as_announce_note($channel,$observer_hash,$act) {
 
 	$s['title']    = as_bb_content($content,'name');
 	$s['body']     = $body;
+
+	if($act->recips && (! in_array(ACTIVITY_PUBLIC_INBOX,$act->recips)))
+		$s['item_private'] = 1;
 
 	set_iconfig($s,'activitypub','recips',$act->raw_recips);
 
@@ -1341,6 +1348,9 @@ function as_like_note($channel,$observer_hash,$act) {
 	if($act->obj['conversation']) {
 		set_iconfig($s,'ostatus','conversation',$act->obj['conversation'],1);
 	}
+
+	if($act->recips && (! in_array(ACTIVITY_PUBLIC_INBOX,$act->recips)))
+		$s['item_private'] = 1;
 
 	set_iconfig($s,'activitypub','recips',$act->raw_recips);
 

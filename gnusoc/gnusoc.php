@@ -114,6 +114,10 @@ function gnusoc_webfinger(&$a,&$b) {
 }
 
 function gnusoc_personal_xrd(&$a,&$b) {
+
+	if(! get_pconfig($b['user']['channel_id'],'system','gnusoc_allowed'))
+		return;
+
 	$b['xml'] = str_replace('</XRD>',
 		'<Link rel="salmon" href="' . z_root() . '/salmon/' . $b['user']['channel_address'] . '" />' . "\r\n" .  '<Link rel="http://salmon-protocol.org/ns/salmon-replies" href="' . z_root() . '/salmon/' . $b['user']['channel_address'] . '" />' . "\r\n" .  '<Link rel="http://salmon-protocol.org/ns/salmon-mention" href="' . z_root() . '/salmon/' . $b['user']['channel_address'] . '" />' . "\r\n" . '</XRD>', $b['xml']);
 
