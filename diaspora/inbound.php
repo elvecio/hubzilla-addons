@@ -25,6 +25,14 @@ function diaspora_dispatch_public($msg) {
 	if(is_array($y) && is_array($r))
 		$r = array_merge($r,$y);
 
+	// look for everybody allowing diaspora public comments
+
+	$y = q("select * from channel where channel_id in ( SELECT uid from pconfig where cat = 'system' and k = 'diaspora_public_comments' and v = '1') and channel_removed = 0 ");
+
+	if(is_array($y) && is_array($r))
+		$r = array_merge($r,$y);
+
+
 	// @FIXME we should also enumerate channels that allow postings by anybody
 
 	$msg['public'] = 1;

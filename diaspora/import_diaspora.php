@@ -43,9 +43,10 @@ function import_diaspora_account($data) {
 		}
 	}		
 
+	$pr = $data['user']['profile']['entity_data'];
 
 	$c = create_identity(array(
-		'name' => escape_tags($data['user']['name']),
+		'name' => escape_tags($pr['first_name'] . (($pr['last_name']) ? ' ' . $pr['last_name'] : '')),
 		'nickname' => $address,
 		'account_id' => $account['account_id'],
 		'permissions_role' => 'social'
@@ -62,7 +63,7 @@ function import_diaspora_account($data) {
 
 	// todo - add auto follow settings, (and strip exif in hubzilla)
 
-	$location = escape_tags($data['user']['profile']['location']);
+	$location = escape_tags($pr['location']);
 	if(! $location)
 		$location = '';
 
@@ -72,27 +73,23 @@ function import_diaspora_account($data) {
 		intval($channel_id)
 	);
 
-	if($data['user']['profile']['nsfw']) { 
+	if($pr['nsfw']) { 
 		q("update channel set channel_pageflags = (channel_pageflags | %d) where channel_id = %d",
 				intval(PAGE_ADULT),
 				intval($channel_id)
 		);
 	}
 
-	if($data['user']['profile']['image_url']) {
-		$p = z_fetch_url($data['user']['profile']['image_url'],true);
-		if($p['success']) {
-			$rawbytes = $p['body'];
-			$type = guess_image_type('dummyfile',$p['header']);
-			import_channel_photo($rawbytes,$type,$c['channel']['channel_account_id'],$channel_id);
-		}
+	if($pr['image_url']) {
+		$type = import_channel_photo_from_url($pr['image_url']);
+	
 	}
 
-	$gender = escape_tags($data['user']['profile']['gender']);
-	$about = markdown_to_bb($data['user']['profile']['bio']);
-	$publish = intval($data['user']['profile']['searchable']);
-	if($data['user']['profile']['birthday'])
-		$dob = datetime_convert('UTC','UTC',$data['user']['profile']['birthday'],'Y-m-d');
+	$gender = escape_tags($pr['gender']);
+	$about = markdown_to_bb($pr['bio']);
+	$publish = intval($pr['searchable']);
+	if($pr['birthday'])
+		$dob = datetime_convert('UTC','UTC',$pr['birthday'],'Y-m-d');
 	else
 		$dob = '0000-00-00';
 
@@ -107,8 +104,8 @@ function import_diaspora_account($data) {
 		intval($channel_id)
 	);
 
-	if($data['user']['aspects']) {
-		foreach($data['user']['aspects'] as $aspect) {
+	if($data['user']['contact_groups']) {
+		foreach($data['user']['contact_groups'] as $aspect) {
 			group_add($channel_id,escape_tags($aspect['name']),intval($aspect['contacts_visible']));
 		}
 	} 
@@ -118,10 +115,10 @@ function import_diaspora_account($data) {
 
 	if($data['user']['contacts']) {
 		foreach($data['user']['contacts'] as $contact) {
-			$result = new_contact($channel_id, $contact['person_diaspora_handle'], $c['channel']);
+			$result = new_contact($channel_id, $contact['account_id'], $c['channel']);
 			if($result['success']) {
-				if($contact['aspects']) {
-					foreach($contact['aspects'] as $aspect) {
+				if($contact['contact_groups_membership']) {
+					foreach($contact['contact_groups_membership'] as $aspect) {
 						group_add_member($channel_id,$aspect['name'],$result['abook']['xchan_hash']);
 					}
 				}

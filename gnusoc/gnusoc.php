@@ -443,7 +443,7 @@ function gnusoc_queue_deliver(&$a,&$b) {
     else {
         logger('slap_deliver: queue post returned ' . $result['return_code']
             . ' from ' . $outq['outq_posturl'],LOGGER_DEBUG);
-            update_queue_item($outq['outq_hash']);
+            update_queue_item($outq['outq_hash'],10);
     }
     return;
 

@@ -79,7 +79,7 @@ function xmpp_login($a,$b) {
 		return;
 
 	if (! $_SESSION['allow_api']) {
-		$password = substr(random_string(16));
+		$password = random_string(16);
 		set_pconfig(local_channel(), "xmpp", "password", $password);
 	}
 }

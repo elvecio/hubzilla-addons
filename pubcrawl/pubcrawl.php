@@ -1017,7 +1017,7 @@ function pubcrawl_queue_deliver(&$b) {
 					}
 				}
 				if($piled_up) {
-					do_delivery($piled_up);
+					do_delivery($piled_up,true);
 				}
 			}
 		}
@@ -1028,6 +1028,7 @@ function pubcrawl_feature_settings_post(&$b) {
 
 	if($_POST['pubcrawl-submit']) {
 		set_pconfig(local_channel(),'system','activitypub_allowed',intval($_POST['activitypub_allowed']));
+		set_pconfig(local_channel(),'activitypub','downgrade_media', 1 - intval($_POST['activitypub_send_media']));
 		
 		info( t('ActivityPub Protocol Settings updated.') . EOL);
 	}
@@ -1042,6 +1043,9 @@ function pubcrawl_feature_settings(&$s) {
 
 	$sc .= replace_macros(get_markup_template('field_checkbox.tpl'), array(
 		'$field'	=> array('activitypub_allowed', t('Enable the ActivityPub protocol for this channel'), $ap_allowed, '', $yes_no),
+	));
+	$sc .= replace_macros(get_markup_template('field_checkbox.tpl'), array(
+		'$field'	=> array('activitypub_send_media', t('Send multi-media HTML articles'), 1 - intval(get_pconfig(local_channel(),'activitypub','downgrade_media',true)), t('Not supported by some microblog services such as Mastodon'), $yes_no),
 	));
 
 

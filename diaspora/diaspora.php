@@ -214,7 +214,6 @@ function diaspora_notifier_process(&$arr) {
 
 
 function diaspora_process_outbound(&$arr) {
-
 /*
 
 	We are passed the following array from the notifier, providing everything we need to make delivery decisions.
@@ -1178,7 +1177,7 @@ function diaspora_queue_deliver(&$b) {
 					if($interval)
 						@time_sleep_until(microtime(true) + (float) $interval);
 
-					do_delivery($piled_up);
+					do_delivery($piled_up,true);
 				}
 			}
 		}

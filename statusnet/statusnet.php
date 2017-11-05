@@ -818,7 +818,7 @@ function statusnet_queue_deliver(&$a,&$b) {
 			$result = $dent->post('statuses/update', array('status' => $outq['outq_msg']));
 			if ($result->error) {
 				logger('Send to GNU social failed: "' . $result->error . '"');
-				update_queue_item($outq['outq_hash']);
+				update_queue_item($outq['outq_hash'],10);
 			}
 			else {
 				logger('statusnet_post send, result: ' . print_r($result, true) 

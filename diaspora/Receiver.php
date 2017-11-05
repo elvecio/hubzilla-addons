@@ -686,7 +686,16 @@ class Diaspora_Receiver {
 
 		/* WARN: As a side effect of this, all of $this->xmlbase will now be unxmlified */
 
-		$unxml = array_map('unxmlify',$this->xmlbase);
+		$oldxml = array_map('unxmlify',$this->xmlbase);
+		if($oldxml) {
+			$unxml = [];
+			foreach($oldxml as $k => $v) {
+				if($k === 'diaspora_handle')
+					$k = 'author';
+				$unxml[$k] = $v;
+			}
+		}
+
 
 		if($parent_author_signature) {
 			// If a parent_author_signature exists, then we've received the comment
@@ -902,7 +911,7 @@ class Diaspora_Receiver {
 
 		$parent_uri = $guid;
  
-		$messages = $this->xmlbase['message'];
+		$messages = [ $this->xmlbase['message'] ];
 
 		if(! count($messages)) {
 			logger('diaspora_conversation: empty conversation');
@@ -1314,7 +1323,7 @@ class Diaspora_Receiver {
 			return 202;
 		}
 
-		$r = q("SELECT * FROM item WHERE uid = %d AND mid = '%s' and parent_mid = mid LIMIT 1",
+		$r = q("SELECT * FROM item WHERE uid = %d AND mid = '%s' LIMIT 1",
 			intval($this->importer['channel_id']),
 			dbesc($parent_guid)
 		);
@@ -1481,7 +1490,20 @@ class Diaspora_Receiver {
 		$arr['obj_type'] = $objtype;
 		$arr['obj'] = $object;
 
-		set_iconfig($arr,'diaspora','fields',array_map('unxmlify',$this->xmlbase),true);
+		$oldxml = array_map('unxmlify',$this->xmlbase);
+		if($oldxml) {
+			$unxml = [];
+			foreach($oldxml as $k => $v) {
+				if($k === 'diaspora_handle')
+					$k = 'author';
+				if($k === 'target_type')
+					$k = 'parent_type';
+				$unxml[$k] = $v;
+			}
+		}
+
+
+		set_iconfig($arr,'diaspora','fields',$unxml,true);
 
 		$result = item_store($arr);
 
@@ -1517,14 +1539,37 @@ class Diaspora_Receiver {
 				dbesc($guid),
 				intval($this->importer['channel_id'])
 			);
+
 			if($r) {
+
+				// by default only delete your copy of the item without propagating it further
+
+				$stage = DROPITEM_NORMAL;
+
+				if($type === 'Comment' || $type === 'Like') {
+
+					// If we are the conversation owner, propagate the delete elsewhere
+
+					$p = q("select * from item where mid = '%s' and uid = %d",
+						dbesc($r[0]['parent_mid']),
+						intval($this->importer['channel_id'])
+					);
+					if($p && $p[0]['owner_xchan'] === $this->importer['channel_hash']) {
+						$stage = DROPITEM_PHASE1;
+					}
+				}
+
 				if(link_compare($r[0]['author_xchan'],$contact['xchan_hash'])
 					|| link_compare($r[0]['owner_xchan'],$contact['xchan_hash'])) {
-					drop_item($r[0]['id'],false);
+					drop_item($r[0]['id'],false, $stage);
+
+					// notification is not done in drop_item() unless the process is interactive
+					// so call it now
+
+					if($stage === DROPITEM_PHASE1) {
+						Zotlabs\Daemon\Master::Summon( [ 'Notifier','drop',$r[0]['id'] ] );
+					}
 				}
-				// @FIXME - ensure that relay is performed if this was an upstream
-				// Could probably check if we're the owner and it is a like or comment
-				// This may or may not be handled by drop_item
 			}
 		}
 

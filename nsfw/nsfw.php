@@ -168,7 +168,7 @@ function nsfw_prepare_body(&$a,&$b) {
 				$author = substr($word,0,strpos($word,'::'));
 				$word = substr($word,strpos($word,'::')+2);
 			}			
-			if($author && stripos($b['item']['author']['xchan_name'],$author) === false)
+			if($author && (stripos($b['item']['author']['xchan_name'],$author) === false) && (stripos($b['item']['author']['xchan_addr'],$author) === false))
 				continue;
 
 
