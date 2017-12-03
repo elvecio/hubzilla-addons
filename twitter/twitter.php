@@ -381,7 +381,7 @@ function twitter_shortenmsg($b, $shortlink = false) {
 	//$body = preg_replace("/\[share(.*?)\](.*?)\[\/share\]/ism","\n\n$2\n\n",$body);
 
 	// At first convert the text to html
-	$html = bbcode($body, false, false);
+	$html = bbcode($body, [ 'tryoembed' => false ]);
 
 	// Then convert it to plain text
 	$msg = trim(html2plain($html, 0, true));

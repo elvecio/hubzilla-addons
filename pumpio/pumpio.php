@@ -345,7 +345,9 @@ function pumpio_send(&$a,&$b) {
 
 		$params["object"] = array(
 					'objectType' => "note",
-					'content' => $title . bbcode($b['body'], false, false));
+					'content' => $title . bbcode($b['body'], [ 'tryoembed' => false ])
+		);
+
 
 		if ($public)
 			$params["to"] = array(Array(

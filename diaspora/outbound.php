@@ -470,6 +470,8 @@ function diaspora_deliver_local_comments($item,$parent) {
 	$new_item = $item;
 	unset($new_item['owner']);
 	unset($new_item['author']);
+	unset($new_item['id']);
+	unset($new_item['parent']);
 
 	foreach($r as $rv) {
 		if($rv['uid'] === $item['uid'])

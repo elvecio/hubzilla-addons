@@ -537,7 +537,7 @@ function statusnet_shortenmsg($b, $max_char) {
 	$body = preg_replace("/\[share(.*?)\](.*?)\[\/share\]/ism","\n\n$2\n\n",$body);
 
 	// At first convert the text to html
-	$html = bbcode($body, false, false);
+	$html = bbcode($body, [ 'tryoembed' => false ]);
 
 	// Then convert it to plain text
 	//$msg = trim($b['title']." \n\n".html2plain($html, 0, true));
@@ -734,7 +734,8 @@ function statusnet_post_hook(&$a,&$b) {
 					// ok, all the links we want to send out are save, now strip 
 					// away the remaining bbcode
 
-			$msg = bbcode($tmp, false, false, true);
+			$msg = bbcode($tmp, [ 'tryoembed' => false, 'cache' => true ]);
+
 			$msg = str_replace(array('<br>','<br />'),"\n",$msg);
 			$msg = strip_tags($msg);
 

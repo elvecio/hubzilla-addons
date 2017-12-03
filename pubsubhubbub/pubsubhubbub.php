@@ -113,6 +113,7 @@ function push_notifier_process(&$a,&$b) {
 	if(array_key_exists('parent_item',$b) && $b['parent_item']) {
 
 		if($b['upstream'] && $channel['channel_hash'] === $b['parent_item']['owner_xchan']) {
+			logger('avoiding duplicates');
 			return;
 		}
 	}
@@ -131,9 +132,15 @@ function push_notifier_process(&$a,&$b) {
 		return;
 	}
 
-	$feed = get_feed_for($channel,'', [ 'compat' => 1, 'start' => 0, 'records' => 10 ]);
+	$feed = get_feed_for($channel,'', [ 'compat' => 1, 'start' => 0, 'records' => 10, 'interactive' => true ]);
+	if(! $feed) {
+		logger('empty feed');
+		return;
+	}
 
 	foreach($r as $rr) {
+
+		logger('processing: ' . print_r($rr,true));
 
 		//$compat = ((strpos($rr['topic'],'/ofeed/')) ? 1 : 0);
 
