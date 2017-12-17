@@ -164,7 +164,8 @@ function diaspora_build_relay_tags() {
 
 function diaspora_magic_env($channel,$msg) {
 
-	$data        = preg_replace('/s+/','', base64url_encode($msg));
+	$data        = preg_replace('/\s+/','', base64url_encode($msg));
+
 	$keyhash     = base64url_encode(channel_reddress($channel));
 	$type        = 'application/xml';
 	$encoding    = 'base64url';

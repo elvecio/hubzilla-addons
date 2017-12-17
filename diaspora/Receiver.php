@@ -454,8 +454,15 @@ class Diaspora_Receiver {
 		$orig_author = notags($this->get_root_author());
 		$orig_guid = notags($this->get_property('root_guid'));
 
+		$orig_author_xchan = find_diaspora_person_by_handle($orig_author);
+
+		if($orig_author_xchan['xchan_network'] === 'zot')
+			$orig_url_arg = 'display';
+		else
+			$orig_url_arg = 'posts';
+
 		$source_url = 'https://' . substr($orig_author,strpos($orig_author,'@')+1) . '/fetch/post/' . $orig_guid ;
-		$orig_url = 'https://'.substr($orig_author,strpos($orig_author,'@')+1).'/posts/'.$orig_guid;
+		$orig_url = 'https://'.substr($orig_author,strpos($orig_author,'@')+1).'/'.$orig_url_arg.'/'.$orig_guid;
 
 		if($text)
 			$text = markdown_to_bb($text) . "\n";
