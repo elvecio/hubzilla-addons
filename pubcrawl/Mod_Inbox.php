@@ -65,7 +65,7 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 		if($is_public) {
 
-			$parent = ((array_key_exists('inReplyTo',$AS->obj)) ? urldecode($AS->obj['inReplyTo']) : '');
+			$parent = ((is_array($AS->obj) && array_key_exists('inReplyTo',$AS->obj)) ? urldecode($AS->obj['inReplyTo']) : '');
 
 			if($parent) {
 				//this is a comment - deliver to everybody who owns the parent
