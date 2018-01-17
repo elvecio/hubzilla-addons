@@ -150,6 +150,7 @@ function twitter_settings_post ($a,$post) {
 		set_pconfig(local_channel(),'twitter', 'mirror_posts', intval($_POST['twitter-mirror']));
 		set_pconfig(local_channel(),'twitter', 'intelligent_shortening', intval($_POST['twitter-shortening']));
 		set_pconfig(local_channel(),'twitter', 'import', intval($_POST['twitter-import']));
+		set_pconfig(local_channel(),'twitter', 'tweet_length', intval($_POST['twitter-length']));
 		set_pconfig(local_channel(),'twitter', 'create_user', intval($_POST['twitter-create_user']));
 		info( t('Twitter settings updated.') . EOL);
 	}}
@@ -242,6 +243,11 @@ function twitter_settings(&$a,&$s) {
 				'$field'	=> array('twitter-enable', t('Allow posting to Twitter'), $checked, t('If enabled your public postings can be posted to the associated Twitter account'), array(t('No'),t('Yes')))
 			));
 
+			$sc .= replace_macros(get_markup_template('field_input.tpl'), array(
+				'$field'	=> array('twitter-length', t('Twitter post length'), get_pconfig(local_channel(),'twitter','tweet_length',140), t('Maximum tweet length'))
+			));
+
+
 			$sc .= replace_macros(get_markup_template('field_checkbox.tpl'), array(
 				'$field'	=> array('twitter-default', t('Send public postings to Twitter by default'), $defchecked, t('If enabled your public postings will be posted to the associated Twitter account by default'), array(t('No'),t('Yes')))
 			));
@@ -326,7 +332,7 @@ function twitter_shortenmsg($b, $shortlink = false) {
 	require_once("include/bbcode.php");
 	require_once("include/html2plain.php");
 
-	$max_char = 140;
+	$max_char = get_pconfig($b['uid'],'twitter','tweet_length',140);
 
 //	$b['body'] = bb_CleanPictureLinks($b['body']);
 
@@ -604,7 +610,7 @@ function twitter_post_hook(&$a,&$b) {
                 // in theory max char is 140 but T. uses t.co to make links 
                 // longer so we give them 10 characters extra
 		if (!$intelligent_shortening) {
-			$max_char = 130; // max. length for a tweet
+			$max_char = intval(get_pconfig($b['uid'],'twitter','tweet_length',140)) - 10; // max. length for a tweet
 	                // we will only work with up to two times the length of the dent 
 	                // we can later send to Twitter. This way we can "gain" some 
 	                // information during shortening of potential links but do not 

@@ -17,12 +17,24 @@ function adultphotoflag_unload() {
 	unregister_hook('get_features','addon/adultphotoflag/adultphotoflag.php','adultphotoflag_get_features');
 }
 
-function adultphotoflag_get_features(&$a,&$b) {
+function adultphotoflag_get_features(&$a,&$x) {
 
-	$b['tools'][] = array(
+
+	$entry = [
 		'adult_photo_flagging', 
 		t('Flag Adult Photos'),  
-		t('Provide photo edit option to hide inappropriate photos from default album view'),false);
+		t('Provide photo edit option to hide inappropriate photos from default album view'),
+		false,
+		get_config('feature_lock','adult_photo_flagging'),                                              
+		feature_level('adult_photo_flagging',2),          
+	];
+
+	if(($x['filtered'] == false) || ($x['filtered'] == true && intval($x['techlevel']) >= intval($entry[5]))) {
+		if(! is_array($x['features']['tools'])) {
+			$x['features']['general'] = [ t('Post/Comment Tools') ];
+		}
+		$x['features']['general'][] = $entry;
+	}
 
 }
 

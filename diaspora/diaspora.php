@@ -105,7 +105,13 @@ function diaspora_well_known(&$b) {
 		$tags = get_config('diaspora','relay_tags');
 		if($tags) {
 			$disabled = false;
-			$scope = 'tags';
+
+			// set diaspora.firehose if you want to receive all public diaspora relay posts
+			// otherwise, only import posts with tags that have been followed by your site members
+
+			if(! get_config('diaspora','firehose')) {
+				$scope = 'tags';
+			}
 		}
 
 		$arr = array(

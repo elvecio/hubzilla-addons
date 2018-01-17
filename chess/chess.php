@@ -364,8 +364,9 @@ function chess_post(&$a) {
 					if ($_POST['color'] === 'white' || $_POST['color'] === 'black') {
 						$color = $_POST['color'];
 					} else {
-						notice(t('You must select white or black.') . EOL);
-						return;
+						$randomValue = mt_rand();
+						$color = (($randomValue % 2 == 0) ? 'white' : 'black');
+						info(t('Random color chosen.') . EOL);
 					}
 					$enforce_legal_moves = isset($_POST['playmode']) ? 1 : 0;
 					$game = chess_create_game($channel, $color, $acl, $enforce_legal_moves);
@@ -442,10 +443,10 @@ function chess_content($a) {
 					  'Select "Custom selection" and choose a <i>single</i> channel '
 					  . 'to select your opponent by pressing the "Show" button for '
 					  . 'the desired channel.'),
-					'$allow_cid' => acl2json(array()),
-					'$allow_gid' => acl2json(array()),
+					'$allow_cid' => '',
+					'$allow_gid' => '',
 					'$deny_cid' => acl2json($channel['channel_hash']),
-					'$deny_gid' => acl2json(array()),
+					'$deny_gid' => '',
 					'$channel' => $channel['channel_address']
 				));
 				return $o;

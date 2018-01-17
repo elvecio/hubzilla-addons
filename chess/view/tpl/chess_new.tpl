@@ -8,7 +8,7 @@
 	<hr>
 	<form id="chess-new-form" action="chess/{{$channel}}/new/" method="post" class="acl-form" data-form_id="chess-new-form" data-allow_cid='{{$allow_cid}}' data-allow_gid='{{$allow_gid}}' data-deny_cid='{{$deny_cid}}' data-deny_gid='{{$deny_gid}}'>
 
-		<h4>Choose your color. White takes the first turn. </h4>
+		<h4>Choose your color. White takes the first turn. Random color if left blank.</h4>
 		<div class="form-check form-check">
 			<label class="form-check-label">
 				<input class="form-check-input" type="radio" name="color" id="id_chess_color1" value="white"> White

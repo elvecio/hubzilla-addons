@@ -3,10 +3,58 @@
 /**
  * Name: phpmailer
  * Description: use phpmailer instead of built-in mail() function
- * Version: 1.0
+ * Version: 1.1
  * Author: Mike Macgirvin <mike@macgirvin.com>
- * Maintainer: Mike Macgirvin <mike@macgirvin.com>
+ * Maintainer: none
  */
+
+/**********
+	Quickstart:
+
+	util/config phpmailer.mailer smtp
+	util/config phpmailer.host some.host
+	util/config phpmailer.port 25  // (or 587 or 465 if using ssl)
+
+	If using smtp authentication:
+
+	util/config phpmailer.smtpauth 1
+	util/config phpmailer.username myname
+	util/config phpmailer.password mypassword
+
+
+	If using starttls:
+
+	util/config phpmailer.smtpsecure tls
+	util/config phpmailer.port 587
+
+	If using ssl:
+
+	util/config phpmailer.smtpsecure ssl
+	util/config phpmailer.port 465
+
+	If the server has a self-signed cert (3.1 or higher):
+
+	util/config phpmailer.noverify 1
+
+
+	For debugging (3.1 or higher)
+
+	util/config phpmailer.smtpdebug 2 // valid values are 0-4
+
+
+
+	This should work for 99% of use cases
+
+	If you encounter any issues, please see 
+		https://github.com/PHPMailer/PHPMailer/wiki/Troubleshooting and also 
+		addon/phpmailer/phpmailer.php to view the mapping between phpmailer options and the 
+	plugin variable names.
+
+	This plugin is unsupported. If it requires any modification to work in your situation, 
+	please submit a pull request with your changes. 
+
+
+********************************************/
 
 
 
@@ -27,7 +75,7 @@ function phpmailer_email_send(&$x) {
 	/**
 	 * @brief Send a multipart/alternative message with Text and HTML versions.
 	 *
-	 * @param array $params an assoziative array with:
+	 * @param array $params an associative array with:
 	 *  * \e string \b fromName        name of the sender
 	 *  * \e string \b fromEmail       email of the sender
 	 *  * \e string \b replyTo         replyTo address to direct responses
@@ -41,6 +89,20 @@ function phpmailer_email_send(&$x) {
 	require('addon/phpmailer/PHPMailerAutoload.php');
 
 	$mail = new PHPMailer;
+
+	$s = intval(get_config('phpmailer','smtpdebug'));
+	if($s) {
+		// 1: debug client
+		// 2: debug server (most useful setting)
+		// 3: debug connection (useful for STARTTLS issues)
+		// 4: debug lowlevel (very verbose)
+
+		$mail->SMTPDebug = intval($s);
+		$mail->Debugoutput = function($str,$level) { logger('phpmailer: ' . $str); };	
+	}
+
+
+	$mail->Hostname = \App::get_hostname();
 
 	if(get_config('phpmailer','mailer') === 'smtp') {
 		$mail->IsSMTP();
@@ -74,10 +136,26 @@ function phpmailer_email_send(&$x) {
 		if($s) 
 			$mail->Password = $s;
 
+
+		$s = intval(get_config('phpmailer','noverify'));
+		if($s) {
+			$mail->SMTPOptions = [ 'ssl' => [ 
+				'verify_peer' => false, 
+				'verify_peer_name' => false, 
+				'allow_self_signed' => true ]
+			];
+		}
+
 	}
 	else {    
 
 		$mail->isSendmail();
+
+		$s = intval(get_config('phpmailer','usesendmailoptions'));
+		if($s)
+			$mail->UseSendmailOptions = (boolean) $s;
+
+
 
 	}
 

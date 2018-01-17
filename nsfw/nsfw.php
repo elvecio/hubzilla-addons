@@ -208,7 +208,18 @@ function nsfw_prepare_body(&$a,&$b) {
 	}	
 	if($found) {
 		$rnd = random_string(8);
-		$b['html'] = '<div class="text-center"><button id="nsfw-wrap-' . $rnd . '" class="btn btn-warning" type="button" onclick="openClose(\'nsfw-html-' . $rnd . '\'); openClose(\'nsfw-photo-' . $rnd . '\');">' . sprintf( t('%s - view'),$orig_word ) . '</button></div><div id="nsfw-html-' . $rnd . '" style="display: none; " class="no-collapse">' . $b['html'] . '</div>';
+
+		$b['html'] = preg_replace('~<img[^>]*\K(?=src)~i','data-',$b['html']);
+
+		if($b['photo']) {
+			$b['photo'] = preg_replace('~<img[^>]*\K(?=src)~i','data-',$b['photo']);
+			$onclick = 'onclick="datasrc2src(\'#nsfw-html-' . $rnd . ' img[data-src]\'); datasrc2src(\'#nsfw-photo-' . $rnd . ' img[data-src]\'); openClose(\'nsfw-html-' . $rnd . '\'); openClose(\'nsfw-photo-' . $rnd . '\');"';
+		}
+		else {
+			$onclick = 'onclick="datasrc2src(\'#nsfw-html-' . $rnd . ' img[data-src]\'); openClose(\'nsfw-html-' . $rnd . '\');"';
+		}
+
+		$b['html'] = '<div class="text-center"><button id="nsfw-wrap-' . $rnd . '" class="btn btn-warning" type="button" ' . $onclick . '>' . sprintf( t('%s - view'),$orig_word ) . '</button></div><div id="nsfw-html-' . $rnd . '" style="display: none; " class="no-collapse">' . $b['html'] . '</div>';
 		$b['photo'] = (($b['photo']) ? '<div id="nsfw-photo-' . $rnd . '" style="display: none; " >' . $b['photo'] . '</div>' : '');
 	}
 }
