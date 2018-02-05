@@ -164,6 +164,7 @@ function phpmailer_email_send(&$x) {
 	$mail->addReplyTo($x['replyTo']);
 	$mail->addAddress($x['toEmail']);
 	$mail->Subject = $x['messageSubject'];
+	$mail->CharSet = 'UTF-8';
 
 	if($x['htmlVersion']) {
 		$mail->isHTML(true);

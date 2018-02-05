@@ -214,14 +214,19 @@ function diaspora_build_status($item,$owner) {
 
 	$myaddr = channel_reddress($owner);
 
-	if(intval($item['id']) != intval($item['parent'])) {
+	if($item['mid'] !== $item['parent_mid']) {
 		logger('attempted to send a comment as a top-level post');
-		return;
+		return '';
 	}
 
-	if(($item['item_wall']) && ($item['owner_xchan'] != $item['author_xchan']) &&
-		get_pconfig($owner['channel_id'],'diaspora','sign_unsigned')) {
-		diaspora_share_unsigned($item,(($item['author']) ? $item['author'] : null));
+	if(($item['item_wall']) && ($item['owner_xchan'] != $item['author_xchan'])) {
+		if(get_pconfig($owner['channel_id'],'diaspora','sign_unsigned')) {
+			diaspora_share_unsigned($item,(($item['author']) ? $item['author'] : null));
+		}
+		else {
+			logger('cannot sign wall-to-wall post for Diaspora');
+			return '';
+		}
 	}
 
 	$images = array();
@@ -236,6 +241,7 @@ function diaspora_build_status($item,$owner) {
 	$created = datetime_convert('UTC','UTC',$item['created'],'Y-m-d H:i:s \U\T\C');
 
 	$created_at = datetime_convert('UTC','UTC',$item['created'],ATOM_TIME);
+	$edited_at  = datetime_convert('UTC','UTC',$item['edited'],ATOM_TIME);
 
 	if(defined('DIASPORA_V2')) {
 
@@ -246,6 +252,10 @@ function diaspora_build_status($item,$owner) {
 			'guid'       => $item['mid'],
 			'created_at' => $created_at,
 		];
+
+		if($edited_at > $created_at)
+			$arr['edited_at'] = $edited_at;
+
 
 		// context specific attributes
 

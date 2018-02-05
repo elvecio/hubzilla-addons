@@ -93,7 +93,7 @@ var chess_init = function () {
 	$(window).resize(chess_fit_board);
 	setTimeout(chess_fit_board,300);
 	setTimeout(chess_get_history,300);
-	chess_timer = setTimeout(chess_update_game,300);
+	chess_timer = setTimeout(chess_update_game,15000);
 };
 
 var chess_update_settings = function () {
@@ -141,6 +141,13 @@ var chess_onDragStart = function(source, piece, position, orientation) {
 };
 
 var chess_onDrop = function(source, target, piece, newPos, oldPos, orientation) {
+	//	console.log("Source: " + source);
+	//	console.log("Target: " + target);
+	//	console.log("Piece: " + piece);
+	//	console.log("New position: " + ChessBoard.objToFen(newPos));
+	//	console.log("Old position: " + ChessBoard.objToFen(oldPos));
+	//	console.log("Orientation: " + orientation);
+	//	console.log("--------------------");
 	if(ChessBoard.objToFen(newPos) === ChessBoard.objToFen(oldPos)) {
 		return false;
 	}
@@ -236,7 +243,7 @@ var chess_update_game = function () {
 		return false;
 	},
 	'json');
-	chess_timer = setTimeout(chess_update_game,5000);
+	chess_timer = setTimeout(chess_update_game,15000);
 };
 
 var chess_verify_move = function () {

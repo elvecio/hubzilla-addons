@@ -881,7 +881,7 @@ function as_actor_store($url,$person_obj) {
 	}
 
 	$r = q("select * from xchan where xchan_hash = '%s' limit 1",
-		dbesc($person_obj['id'])
+		dbesc($url)
 	);
 	
 	if(! $r) {

@@ -297,6 +297,8 @@ function diaspora_send_migration($item,$owner,$contact,$public_batch = false) {
 function diaspora_send_status($item,$owner,$contact,$public_batch = false) {
 
 	$msg = diaspora_build_status($item,$owner);
+	if(! $msg)
+		return [];
 
 	logger('diaspora_send_status: '.$owner['channel_name'].' -> '.$contact['xchan_name'].' base message: ' . $msg, LOGGER_DATA);
 	$slap = diaspora_prepare_outbound($msg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'], $public_batch);
@@ -748,7 +750,7 @@ function diaspora_profile_change($channel,$recip,$public_batch = false,$profile_
 		$dob = '1000-00-00';
 
 		if(($profile['dob']) && ($profile['dob'] != '0000-00-00'))
-			$dob = ((intval($profile['dob'])) ? intval($profile['dob']) : '1000') . '-' . datetime_convert('UTC','UTC',$profile['dob'],'m-d');
+			$dob = ((intval(substr($profile['dob'],0,4))) ? intval($profile['dob']) : '1000') . '-' . datetime_convert('UTC','UTC',$profile['dob'],'m-d');
 		if($dob === '1000-00-00')
 			$dob = '';
 		$gender = xmlify($profile['gender']);

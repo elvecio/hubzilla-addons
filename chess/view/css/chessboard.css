@@ -159,9 +159,9 @@ input.radio:focus ~ label:before {
 	color: gray;
 }
 
-#chess-new-form input {
-	margin-left: 10px;
+#chess-new-form .form-check-input {
+	margin-left: -20px;
 }
 #chess-new-form button {
-	margin-left: 20px;
+	margin-left: 40px;
 }

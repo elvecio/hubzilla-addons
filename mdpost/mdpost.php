@@ -44,10 +44,6 @@ function mdpost_get_features(&$x) {
 		feature_level('markdown',2),          
 	];
 
-	if(($x['filtered'] == false) || ($x['filtered'] == true && intval($x['techlevel']) >= intval($entry[5]))) {
-		if(! is_array($x['features']['composition'])) {
-			$x['features']['composition'] = [ t('Post Composition Features') ];
-		}
-		$x['features']['composition'][] = $entry;
-	}
+	$x['features']['composition'][] = $entry;
+
 }

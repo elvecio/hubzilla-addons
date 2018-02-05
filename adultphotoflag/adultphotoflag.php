@@ -19,7 +19,6 @@ function adultphotoflag_unload() {
 
 function adultphotoflag_get_features(&$a,&$x) {
 
-
 	$entry = [
 		'adult_photo_flagging', 
 		t('Flag Adult Photos'),  
@@ -29,12 +28,8 @@ function adultphotoflag_get_features(&$a,&$x) {
 		feature_level('adult_photo_flagging',2),          
 	];
 
-	if(($x['filtered'] == false) || ($x['filtered'] == true && intval($x['techlevel']) >= intval($entry[5]))) {
-		if(! is_array($x['features']['tools'])) {
-			$x['features']['general'] = [ t('Post/Comment Tools') ];
-		}
-		$x['features']['general'][] = $entry;
-	}
+	$x['features']['general'][] = $entry;
+
 
 }
 

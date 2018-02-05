@@ -206,22 +206,24 @@ class Diaspora_Receiver {
 		}
 
 		$created = notags($this->get_property('created_at'));
+		$edited  = notags($this->get_property('edited_at'));
 		$private = (($this->get_property('public') === 'false') ? 1 : 0);
+		$updated = false;
+		$orig_id = null;
 
 
-		$r = q("SELECT id FROM item WHERE uid = %d AND mid = '%s' LIMIT 1",
+		$r = q("SELECT id, edited FROM item WHERE uid = %d AND mid = '%s' LIMIT 1",
 			intval($this->importer['channel_id']),
 			dbesc($guid)
 		);
 
-		$updated = false;
 
 		if($r) {
-			// check dates if post editing is implemented
 
-			$edited = datetime_convert('UTC','UTC',$created);
-			if($edited > $r[0]['edited']) { 
+			$edited_str = datetime_convert('UTC','UTC',(($edited) ? $edited : $created));
+			if($edited_str > $r[0]['edited']) { 
 				$updated = true;
+				$orig_id = $r[0]['id'];
 			}
 			else {
 				logger('diaspora_post: message exists: ' . $guid);
@@ -373,6 +375,11 @@ class Diaspora_Receiver {
 		else {
 			$datarray['changed'] = $datarray['created'] = $datarray['edited'] = datetime_convert('UTC','UTC',$created);
 		}
+
+		if($orig_id) {
+			$datarray['id'] = $orig_id;
+		}
+
 		$datarray['item_private'] = $private;
 
 		$datarray['plink'] = $plink;
@@ -622,6 +629,10 @@ class Diaspora_Receiver {
 		$created_at = ((array_key_exists('created_at',$this->xmlbase)) 
 			? datetime_convert('UTC','UTC',$this->get_property('created_at')) : datetime_convert());
 
+		$edited_at = ((array_key_exists('edited_at',$this->xmlbase)) 
+			? datetime_convert('UTC','UTC',$this->get_property('edited_at')) : $created_at);
+
+
 		$thr_parent = ((array_key_exists('thread_parent_guid',$this->xmlbase)) 
 			? notags($this->get_property('thread_parent_guid')) : '');
 
@@ -667,13 +678,23 @@ class Diaspora_Receiver {
 		if(intval($parent_item['item_private']))
 			$pubcomment = 0;	
 
+
+		$editing = false;
+		$orig_id = null;
+
 		$r = q("SELECT * FROM item WHERE uid = %d AND mid = '%s' LIMIT 1",
 			intval($this->importer['channel_id']),
 			dbesc($guid)
 		);
 		if($r) {
-			logger('diaspora_comment: our comment just got relayed back to us (or there was a guid collision) : ' . $guid);
-			return;
+			if($edited_at > $r[0]['edited']) {
+				$editing = true;
+				$orig_id = $r[0]['id'];
+			}
+			else {
+				logger('duplicate comment : ' . $guid);
+				return;
+			}
 		}
 
 		/* How Diaspora performs comment signature checking:
@@ -831,6 +852,10 @@ class Diaspora_Receiver {
 			}
 		}
 
+		if($orig_id && $editing) {
+			$datarray['id'] = $orig_id;
+		}
+
 		$datarray['aid'] = $this->importer['channel_account_id'];
 		$datarray['uid'] = $this->importer['channel_id'];
 		$datarray['verb'] = ACTIVITY_POST;
@@ -840,7 +865,9 @@ class Diaspora_Receiver {
 
 		// set the route to that of the parent so downstream hubs won't reject it.
 		$datarray['route'] = $parent_item['route'];
-		$datarray['changed'] = $datarray['created'] = $datarray['edited'] = $created_at;
+		
+		$datarray['changed'] = $datarray['edited'] = $edited_at;
+		$datarray['created'] = $created_at;
 		$datarray['item_private'] = $parent_item['item_private'];
 
 		$datarray['owner_xchan'] = $parent_item['owner_xchan'];
@@ -882,7 +909,12 @@ class Diaspora_Receiver {
 
 		set_iconfig($datarray,'diaspora','fields',$unxml,true);
 
-		$result = item_store($datarray);
+		if($editing) {
+			$result = item_store_update($datarray);
+		}
+		else {
+			$result = item_store($datarray);
+		}
 
 		if($result && $result['success'])
 			$message_id = $result['item_id'];
@@ -1715,6 +1747,10 @@ class Diaspora_Receiver {
 	
 		// Generic birthday. We don't know the timezone. The year is irrelevant. 
 
+		if(intval(substr($birthday,0,4)) <= 1004)
+			$birthday = '1901-' . substr($birthday,5);
+
+
 		$birthday = str_replace('1000','1901',$birthday);
 
 		$birthday = datetime_convert('UTC','UTC',$birthday,'Y-m-d');
@@ -1722,8 +1758,13 @@ class Diaspora_Receiver {
 		// this is to prevent multiple birthday notifications in a single year
 		// if we already have a stored birthday and the 'm-d' part hasn't changed, preserve the entry, which will preserve the notify year
 
-		if(substr($birthday,5) === substr($contact['bd'],5))
-			$birthday = $contact['bd'];
+		// @fixme Diaspora birthdays are not currently stored and $contact['bd'] does not exist in the current implementation
+		// This represents legacy code from Friendica where Diaspora birthdays were stored and managed separately from Friendica birthdays due to 
+		// incompatible differences in implementation.
+		// It may be possible to implement a similar scheme going forward using abconfg or xconfig for platform dependent storage. 
+
+		//		if(substr($birthday,5) === substr($contact['bd'],5))
+		//			$birthday = $contact['bd'];
 
 		$r = q("update xchan set xchan_name = '%s', xchan_name_date = '%s', xchan_photo_l = '%s', xchan_photo_m = '%s', xchan_photo_s = '%s', xchan_photo_mimetype = '%s' where xchan_hash = '%s' ",
 			dbesc($name),

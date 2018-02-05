@@ -32,6 +32,14 @@
 		<div>
 			<button id="dbtn-acl" class="btn btn-sm btn-success" data-toggle="modal" data-target="#aclModal" onclick="return false;" >Choose opponent</button>
 		</div>
+		<br>
+		<h4>Do you want the game to be publicly visible? Leave unchecked to keep the game private between players.</h4> 
+		<div class="form-check form-check">
+			<label class="form-check-label">
+				<input class="form-check-input" type="checkbox" name="public_visible" id="id_chess_public_visible" value="0"> Make this chess game publicly visible
+			</label>
+			
+		</div>
 		<hr>
 		<input class="btn btn-primary" id="dbtn-submit" type="submit" name="submit" value="Create Game" />
 	</form>

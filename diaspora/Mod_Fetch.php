@@ -26,10 +26,28 @@ class Fetch extends \Zotlabs\Web\Controller {
 	
 		$channel = channelx_by_hash($item[0]['author_xchan']);
 		if(! $channel) {
+
+			// see if the content owner enabled the Diaspora forgery mechanism
+
+			$owner = channelx_by_hash($item[0]['owner_xchan']);
+			if(($owner) && ($item[0]['item_wall']) && ($item[0]['owner_xchan'] != $item[0]['author_xchan'])) {
+				if(get_pconfig($owner['channel_id'],'diaspora','sign_unsigned')) {
+					diaspora_share_unsigned($item[0],(($item[0]['author']) ? $item[0]['author'] : null));
+					$channel = $owner;
+				}
+			}
+		}
+
+		if(! $channel) {
 			$r = q("select * from xchan where xchan_hash = '%s' limit 1",
 				dbesc($item[0]['author_xchan'])
 			);
-			if($r) {
+
+			// We cannot serve this request - redirect if there is some small chance the author's site might provide Diaspora protocol support.
+			// We're taking a chance on the zot connections but at worst case they will return not found when they get the request if the channel does not
+			// support the Diaspora protocol. 
+
+			if($r && in_array($r[0]['xchan_network'],[ 'diaspora','friendica-over-diaspora','zot' ])) {
 				$url = $r[0]['xchan_url'];
 				if(strpos($url,z_root()) === false) {
 					$m = parse_url($url);
@@ -37,6 +55,13 @@ class Fetch extends \Zotlabs\Web\Controller {
 						. '/fetch/' . argv(1) . '/' . argv(2));
 				}
 			}
+
+			// otherwise we cannot serve this request and cannot find anybody who can
+
+			http_status_exit(404,'Not found');
+		}
+
+		if(! intval(get_pconfig($channel['channel_id'],'system','diaspora_allowed'))) {
 			http_status_exit(404,'Not found');
 		}
 

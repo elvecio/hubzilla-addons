@@ -131,7 +131,7 @@ function dirstats_cron(&$a, $b) {
 		set_config('dirstats','hubcount',$hubcount);
 		}
 
-		$r = q("SELECT count(distinct hubloc_host) as total FROM hubloc where hubloc_network = 'zot' and hubloc_deleted = 0 and hubloc_connected > '%s' and hubloc_updated > '%s')",
+		$r = q("SELECT count(distinct hubloc_host) as total FROM hubloc where hubloc_network = 'zot' and hubloc_deleted = 0 and hubloc_connected > '%s' and hubloc_updated > '%s'",
             dbesc(NULL_DATE),
             dbesc(NULL_DATE)
 

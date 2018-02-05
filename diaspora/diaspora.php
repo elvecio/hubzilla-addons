@@ -835,8 +835,6 @@ function diaspora_post_local(&$item) {
 
 	if($item['mid'] === $item['parent_mid'])
 		return;
-	if($item['created'] != $item['edited'])
-		return;
 
 	$meta = null;
 
@@ -876,6 +874,9 @@ function diaspora_post_local(&$item) {
 			if(defined('DIASPORA_V2')) {
 				$meta['author']     = $handle;
 				$meta['created_at'] = datetime_convert('UTC','UTC', $item['created'], ATOM_TIME );
+				if($item['edited'] > $item['created']) {
+					$meta['edited_at'] = datetime_convert('UTC','UTC', $item['edited'], ATOM_TIME );
+				}
 			}
 			else {
 				$meta['diaspora_handle'] = $handle;
