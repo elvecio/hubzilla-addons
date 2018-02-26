@@ -914,7 +914,7 @@ function twitter_expand_entities($a, $body, $item, $no_tags = false, $dontinclud
 		}
 
 
-		$tags = implode($tags_arr, ",");
+		$tags = implode(',',$tags_arr);
 
 	}
 	return(array("body" => $body, "tags" => $tags));

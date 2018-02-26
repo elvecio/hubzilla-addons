@@ -632,7 +632,8 @@ function pubcrawl_permissions_create(&$x) {
 
 	$msg = array_merge(['@context' => [
 			ACTIVITYSTREAMS_JSONLD_REV,
-			'https://w3id.org/security/v1'
+			'https://w3id.org/security/v1',
+			z_root() . ZOT_APSCHEMA_REV
 		]], 
 		[
 			'id'     => z_root() . '/follow/' . $x['recipient']['abook_id'],

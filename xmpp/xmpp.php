@@ -113,9 +113,6 @@ function xmpp_converse(&$a,&$s) {
 	if ($_GET["mode"] == "minimal")
 		return;
 
-	if (App::$is_mobile || App::$is_tablet)
-		return;
-
 	if (!get_pconfig(local_channel(),"xmpp","enabled"))
 		return;
 

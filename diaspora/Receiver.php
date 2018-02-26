@@ -254,6 +254,50 @@ class Diaspora_Receiver {
 			$body = scale_external_images($body);
 		}
 
+		$event = $this->get_property('event');
+		if(is_array($event) && array_key_exists('guid',$event)) {
+			$ev = [];
+			$dts = $this->get_property('start',$event);
+			if($dts) {
+				$ev['dtstart'] = datetime_convert('UTC','UTC', $dts);
+			}
+			$dte = $this->get_property('end',$event);
+			if($dte) {
+				$ev['dtend'] = datetime_convert('UTC','UTC', $dte);
+			}
+			else {
+				$ev['nofinish'] = true;
+			}
+
+			// if an event is created we will use the author of the post.
+			
+//			$ev_author = notags($this->get_author($event));
+//			$ev_xchan = find_diaspora_person_by_handle($ev_author);
+			$ev['event_hash'] = notags($this->get_property('guid',$event));
+			$ev['summary'] = escape_tags($this->get_property('summary',$event));
+			$ev['adjust'] = (($this->get_property('all_day',$event)) ? false : true);
+			$ev_timezone = notags($this->get_property('timezone',$event));
+			$ev['description'] = markdown_to_bb($this->get_property('description',$event));
+			$ev_loc = $this->get_property('location',$event);
+			if($ev_loc) {
+				$ev_address = escape_tags($this->get_property('address',$ev_loc));
+				$ev_lat = notags($this->get_property('lat',$ev_loc));
+				$ev_lon = notags($this->get_property('lon',$ev_loc));
+			}
+			$ev['location'] = '';
+			if($ev_address) {
+				$ev['location'] .=  '[map]' . $ev_address . '[/map]' . "\n\n";
+			}
+			if(! (is_null($ev_lat) || is_null($ev_lon))) {
+				$ev['location'] .= '[map=' . $ev_lat . ',' . $ev_lon . ']';
+			}
+
+			if($ev['start'] && $ev['event_hash'] && $ev['summary']) {
+				$body .= format_event_bbcode($ev);
+			}
+			set_iconfig($datarray,'system','event_id',$ev['event_hash'],true);
+		}
+
 		$maxlen = get_max_import_size();
 
 		if($maxlen && mb_strlen($body) > $maxlen) {
@@ -1356,6 +1400,8 @@ class Diaspora_Receiver {
 			return;
 		}
 
+		// @fixme - check 3rd party like permissions. E.g. fred@server1 is liking something posted by bob@server2 which you (mick@server3) receive a copy
+	
 
 		if((! $this->importer['system']) && (! perm_is_allowed($this->importer['channel_id'],$contact['xchan_hash'],'post_comments'))) {
 			logger('diaspora_like: Ignoring this author.');
@@ -1780,6 +1826,277 @@ class Diaspora_Receiver {
 		return;
 
 	}
+
+
+	function event() {
+
+		$diaspora_handle = notags($this->get_author());
+
+		// not currently handled
+
+		logger('event: ' . print_r($this->xmlbase,true), LOGGER_DATA);
+
+
+	}
+
+	function event_participation() {
+
+		logger('event_participation: ' . print_r($this->xmlbase,true), LOGGER_DATA);
+
+		$guid = notags($this->get_property('guid'));
+		$parent_guid = notags($this->get_property('parent_guid'));
+		$diaspora_handle = notags($this->get_author());
+		$status = notags($this->get_property('status'));
+
+		switch ($status) {
+			case 'accepted':
+				$activity = ACTIVITY_ATTEND;
+				break;
+			case 'declined':
+				$activity = ACTIVITY_ATTENDNO;
+				break;
+			case 'tentative':
+			default:
+				$activity = ACTIVITY_ATTENDMAYBE;
+				break;
+		}
+
+
+		$author_signature = notags($this->get_property('author_signature'));
+		$parent_author_signature = $this->get_property('parent_author_signature');
+
+		$edited = false;
+		$edited_at = notags($this->get_property('edited_at'));
+		if($edited_at)
+			$edited = datetime_convert($edited_at);
+
+		$xchan = find_diaspora_person_by_handle($diaspora_handle);
+
+		if(! $xchan) {
+			logger('Cannot resolve diaspora handle ' . $diaspora_handle);
+			return;
+		}
+
+		$contact = diaspora_get_contact_by_handle($this->importer['channel_id'],$this->msg['author']);
+
+		$pubcomment = get_pconfig($this->importer['channel_id'],'system','diaspora_public_comments',1);
+
+		// by default comments on public posts are allowed from anybody on Diaspora. That is their policy.
+		// Once this setting is set to something we'll track your preference and it will over-ride the default. 
+
+		if(($pubcomment) && (! $contact))
+			$contact = find_diaspora_person_by_handle($this->msg['author']);
+
+		// find a message owned by this channel and holding the referenced event
+
+		$r = q("select item.* from item left join iconfig on iconfig.iid = item.id where cat = 'system' and k = 'event_id' and v = '%s' and item.uid = %d limit 1",
+			dbesc($parent_guid),
+			intval($this->importer['channel_id'])
+		);
+			
+		if(! $r) {
+			logger('event ' . $parent_guid . ' not found.');
+			return;
+		}
+		$item_id = $r[0]['id'];
+
+
+
+		xchan_query($r);
+		$parent_item = $r[0];
+
+		if(intval($parent_item['item_nocomment']) || $parent_item['comment_policy'] === 'none' 
+			|| ($parent_item['comments_closed'] > NULL_DATE && $parent_item['comments_closed'] < datetime_convert())) {
+			logger('comments disabled for post ' . $parent_item['mid']);
+			return;
+		}
+
+		$orig_item = false;
+
+		$r = q("SELECT * FROM item WHERE verb in ( '%s', '%s' , '%s') and uid = %d and parent_mid = '%s' and author_xchan = '%s'",
+			dbesc(ACTIVITY_ATTEND),
+			dbesc(ACTIVITY_ATTENDNO),
+			dbesc(ACTIVITY_ATTENDMAYBE),
+			intval($this->importer['channel_id']),
+			dbesc($parent_item['mid']),
+			dbesc($xchan['xchan_hash'])
+		);
+
+		if($r) {
+			foreach($r as $rv) {
+				if(($edited) && ($rv['mid'] === $guid)) {
+					if($edited > $rv['created']) {
+						$orig_item = $rv;
+						continue;
+					}
+					else {
+						return;
+					}
+				}
+				drop_item($rv['id'],false);
+			}
+		}
+
+		$i = q("select * from xchan where xchan_hash = '%s' limit 1",
+			dbesc($parent_item['author_xchan'])
+		);
+		if($i)
+			$item_author = $i[0];
+
+
+		$key = $this->msg['key'];
+
+		if($parent_author_signature) {
+			// If a parent_author_signature exists, then we've received the like
+			// relayed from the top-level post owner.
+
+			$x = diaspora_verify_fields($this->xmlbase,$parent_author_signature,$key);
+			if(! $x) {
+				logger('diaspora_like: top-level owner verification failed.');
+				return;
+			}
+		}
+		else {
+
+			// If there's no parent_author_signature, then we've received the like
+			// from the like creator. In that case, the person is "like"ing
+			// our post, so he/she must be a contact of ours and his/her public key
+			// should be in $this->msg['key']
+
+			$x = diaspora_verify_fields($this->xmlbase,$author_signature,$key);
+			if(! $x) {
+				logger('diaspora_like: author verification failed.');
+				return;
+			}
+
+			if(defined('DIASPORA_V2'))
+				$this->xmlbase['parent_author_signature'] = diaspora_sign_fields($this->xmlbase,$this->importer['channel_prvkey']);
+		}
+	
+		logger('diaspora_like: signature check complete.',LOGGER_DEBUG);
+
+		// Phew! Everything checks out. Now create an item.
+
+		// Find the original author information.
+		// We need this to make sure we display the author
+		// information (name and avatar) correctly.
+
+		if(strcasecmp($diaspora_handle,$this->msg['author']) == 0)
+			$person = $contact;
+		else {
+			$person = find_diaspora_person_by_handle($diaspora_handle);
+
+			if(! is_array($person)) {
+				logger('diaspora_like: unable to find author details');
+				return;
+			}
+		}
+
+		$uri = $diaspora_handle . ':' . $guid;
+
+
+		$post_type = ('event');
+
+		$links = array(array('rel' => 'alternate','type' => 'text/html', 'href' => $parent_item['plink']));
+		$objtype = (($item['resource_type'] === 'photo') ? ACTIVITY_OBJ_PHOTO : ACTIVITY_OBJ_NOTE );
+
+		if($objtype === ACTIVITY_OBJ_NOTE && (! intval($item['item_thread_top'])))
+			$objtype = ACTIVITY_OBJ_COMMENT;
+
+		$body = $parent_item['body'];
+
+		$object = json_encode(array(
+			'type'    => $post_type,
+			'id'	  => $parent_item['mid'],
+			'parent'  => (($parent_item['thr_parent']) ? $parent_item['thr_parent'] : $parent_item['parent_mid']),
+			'link'	  => $links,
+			'title'   => $parent_item['title'],
+			'content' => $parent_item['body'],
+			'created' => $parent_item['created'],
+			'edited'  => $parent_item['edited'],
+			'author'  => array(
+				'name'     => $item_author['xchan_name'],
+				'address'  => $item_author['xchan_addr'],
+				'guid'     => $item_author['xchan_guid'],
+				'guid_sig' => $item_author['xchan_guid_sig'],
+				'link'     => array(
+					array('rel' => 'alternate', 'type' => 'text/html', 'href' => $item_author['xchan_url']),
+					array('rel' => 'photo', 'type' => $item_author['xchan_photo_mimetype'], 'href' => $item_author['xchan_photo_m'])
+				),
+			),
+		));
+
+
+		if($activity === ACTIVITY_ATTEND)
+			$bodyverb = t('%1$s is attending %2$s\'s %3$s');
+		if($activity === ACTIVITY_ATTENDNO)
+			$bodyverb = t('%1$s is not attending %2$s\'s %3$s');
+		if($activity === ACTIVITY_ATTENDMAYBE)
+			$bodyverb = t('%1$s may attend %2$s\'s %3$s');
+
+		$arr = array();
+
+		$arr['uid'] = $this->importer['channel_id'];
+		$arr['aid'] = $this->importer['channel_account_id'];
+		$arr['mid'] = $guid;
+		
+		$arr['parent_mid'] = $parent_item['mid'];
+
+		if($parent_item['mid'] !== $parent_guid)
+			$arr['thr_parent'] = $parent_guid;
+
+		$arr['owner_xchan'] = $parent_item['owner_xchan'];
+		$arr['author_xchan'] = $person['xchan_hash'];
+
+		$ulink = '[url=' . $item_author['xchan_url'] . ']' . $item_author['xchan_name'] . '[/url]';
+		$alink = '[url=' . $parent_item['author']['xchan_url'] . ']' . $parent_item['author']['xchan_name'] . '[/url]';
+		$plink = '[url='. z_root() .'/display/'.$guid.']'.$post_type.'[/url]';
+		$arr['body'] =  sprintf( $bodyverb, $ulink, $alink, $plink );
+
+		$arr['app']  = 'Diaspora';
+
+		// set the route to that of the parent so downstream hubs won't reject it.
+		$arr['route'] = $parent_item['route'];
+
+		$arr['item_private'] = $parent_item['item_private'];
+		$arr['verb'] = $activity;
+		$arr['obj_type'] = $objtype;
+		$arr['obj'] = $object;
+
+		$oldxml = array_map('unxmlify',$this->xmlbase);
+		if($oldxml) {
+			$unxml = [];
+			foreach($oldxml as $k => $v) {
+				if($k === 'diaspora_handle')
+					$k = 'author';
+				if($k === 'target_type')
+					$k = 'parent_type';
+				$unxml[$k] = $v;
+			}
+		}
+
+		set_iconfig($arr,'diaspora','fields',$unxml,true);
+
+		if($orig_item)
+			$result = item_store_update($arr);
+		else
+			$result = item_store($arr);
+
+		if($result['success']) {
+			// if the message isn't already being relayed, notify others
+			// the existence of parent_author_signature means the parent_author or owner
+			// is already relaying. The parent_item['origin'] indicates the message was created on our system
+
+			if(intval($parent_item['item_origin']) && (! $parent_author_signature))
+				Zotlabs\Daemon\Master::Summon(array('Notifier','comment-import',$result['item_id']));
+			sync_an_item($this->importer['channel_id'],$result['item_id']);
+		}
+
+		return;
+
+	}
+
+
 
 	function participation() {
 

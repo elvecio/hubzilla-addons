@@ -25,17 +25,17 @@ function statistics_unload() {
 
 function statistics_well_known() {
 	if(argc() > 1 && argv(1) === 'nodeinfo') {
-		$arr = [
-			'links' => [
-				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/1.0',
-				'href' => z_root() . '/nodeinfo/1.0'
-			],
+		$arr = [ 'links' => [
 			[
 				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
 				'href' => z_root() . '/nodeinfo/2.0'
 			],
+			[
+				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/1.0',
+				'href' => z_root() . '/nodeinfo/1.0'
+			],
 
-		];
+		]];
 
 		header('Content-type: application/json');
 		echo json_encode($arr);
@@ -51,6 +51,11 @@ function statistics_load_module(&$a, &$b) {
 	}
 }
 
+
+/**
+ * Commenting out the old statistics.json interface
+ * use nodeinfo instead
+ *
 
 function statistics_module() {}
 
@@ -74,12 +79,12 @@ function statistics_init() {
 		"name" => get_config('system','sitename'),
 		"network" => Zotlabs\Lib\System::get_platform_name(),
 		"version" => (($hidden) ? '0.0' : Zotlabs\Lib\System::get_project_version()),
-		"registrations_open" => (($hidden) ? 0 : (get_config('system','register_policy') != 0)),
-		"total_users" => (($hidden) ? 1 : get_config('system','channels_total_stat')),
-		"active_users_halfyear" => (($hidden) ? 1 : get_config('system','channels_active_halfyear_stat')),
-		"active_users_monthly" => (($hidden) ? 1 : get_config('system','channels_active_monthly_stat')),
-		"local_posts" => (($hidden) ? 1 : get_config('system','local_posts_stat')),
-		"local_comments" => (($hidden) ? 1 : get_config('statistics','local_comments_stat')),
+		"registrations_open" => (($hidden) ? false : (bool) (get_config('system','register_policy') != 0)),
+		"total_users" => (($hidden) ? "1" : (string) get_config('system','channels_total_stat')),
+		"active_users_halfyear" => (($hidden) ? "1" : (string) get_config('system','channels_active_halfyear_stat')),
+		"active_users_monthly" => (($hidden) ? "1" : (string) get_config('system','channels_active_monthly_stat')),
+		"local_posts" => (($hidden) ? "1" : (string) get_config('system','local_posts_stat')),
+		"local_comments" => (($hidden) ? "1" : (string) get_config('system','local_comments_stat')),
 		"twitter" => (($hidden) ? false : (bool) get_config('statistics','twitter')),
 		"wordpress" => (($hidden) ? false : (bool) get_config('statistics','wordpress'))
 	);
@@ -89,6 +94,10 @@ function statistics_init() {
 	logger("statistics_init: printed " . print_r($statistics, true));
 	killme();
 }
+
+ *
+ * End commenting out old statistics.json interface
+ */
 
 function statistics_cron_weekly($a,$b) {
 

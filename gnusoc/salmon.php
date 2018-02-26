@@ -113,6 +113,11 @@ function salmon_post(&$a) {
  
 	$datarray = process_salmon_feed($data,$importer);
 
+	if((! is_array($datarray)) || (empty($datarray))) {
+		logger('feed parse error');
+		http_status_exit(400);
+	}
+
 	$author_link = $datarray['author']['author_link'];
 	$item = $datarray['item'];
 
@@ -285,8 +290,8 @@ function salmon_post(&$a) {
 			$importer['send_downstream'] = true;
 		}
 		
-		consume_feed($data,$importer,$xchan,0);
 		consume_feed($data,$importer,$xchan,1);
+		consume_feed($data,$importer,$xchan,2);
 
 		if(! $importer['system'])
 			$status = 200;

@@ -37,7 +37,7 @@ function pubsubhubbub_uninstall() {
 function pubsubhubbub_load() {
 	register_hook('notifier_process','addon/pubsubhubbub/pubsubhubbub.php','push_notifier_process');
 	register_hook('queue_deliver','addon/pubsubhubbub/pubsubhubbub.php','push_queue_deliver');
-	register_hook('atom_feed','addon/pubsubhubbub/pubsubhubbub.php','push_atom_feed');
+	register_hook('atom_feed_top','addon/pubsubhubbub/pubsubhubbub.php','push_atom_feed_top');
 	register_hook('module_loaded', 'addon/pubsubhubbub/pubsubhubbub.php','push_module_loaded');
 	register_hook('channel_mod_content', 'addon/pubsubhubbub/pubsubhubbub.php','push_channel_mod_content');
 
@@ -46,14 +46,15 @@ function pubsubhubbub_load() {
 function pubsubhubbub_unload() {
 	unregister_hook('notifier_process','addon/pubsubhubbub/pubsubhubbub.php','push_notifier_process');
 	unregister_hook('queue_deliver','addon/pubsubhubbub/pubsubhubbub.php','push_queue_deliver');
-	unregister_hook('atom_feed','addon/pubsubhubbub/pubsubhubbub.php','push_atom_feed');
+	unregister_hook('atom_feed_top','addon/pubsubhubbub/pubsubhubbub.php','push_atom_feed_top');
 	unregister_hook('module_loaded', 'addon/pubsubhubbub/pubsubhubbub.php','push_module_loaded');
 	unregister_hook('channel_mod_content', 'addon/pubsubhubbub/pubsubhubbub.php','push_channel_mod_content');
 }
 
 
-function push_atom_feed(&$a,&$b) {
-	$b = str_replace('</generator>','</generator>' . "\r\n" . '  <link href="' . z_root() . '/pubsubhubbub' . '" rel="hub" />',$b);
+function push_atom_feed_top(&$a,&$b) {
+	if($b['params']['compat'])
+		$b['xml'] = str_replace('</generator>','</generator>' . "\r\n" . '  <link href="' . z_root() . '/pubsubhubbub' . '" rel="hub" />',$b['xml']);
 }
 
 

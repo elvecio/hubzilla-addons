@@ -104,7 +104,7 @@ function diaspora_sign_fields($fields,$prvkey) {
 			$n[$k] = $v;
 	}
 
-	$s = implode($n,';');
+	$s = implode(';',$n);
 	logger('signing_string: ' . $s);
 	return base64_encode(rsa_sign($s,$prvkey));
 
@@ -122,7 +122,7 @@ function diaspora_verify_fields($fields,$sig,$pubkey) {
 			$n[$k] = $v;
 	}
 
-	$s = implode($n,';');
+	$s = implode(';',$n);
 	logger('signing_string: ' . $s);
 	return rsa_verify($s,base64_decode($sig),$pubkey);
 
@@ -232,7 +232,17 @@ function diaspora_build_status($item,$owner) {
 	$images = array();
 
 	$title = $item['title'];
+
+	$ev = bbtoevent($item['body']);
+
 	$body = bb_to_markdown($item['body'], [ 'diaspora' ]);
+
+	$ev_obj = null;
+
+	if($ev) {
+		$ev_obj = diaspora_create_event($ev, $myaddr);
+		$body = $ev_obj['summary'];		
+	}
 
 	$poll = '';
 
@@ -256,6 +266,10 @@ function diaspora_build_status($item,$owner) {
 		if($edited_at > $created_at)
 			$arr['edited_at'] = $edited_at;
 
+
+		if($ev_obj) {
+			$arr['event'] = $ev_obj;
+		}
 
 		// context specific attributes
 

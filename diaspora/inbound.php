@@ -152,6 +152,14 @@ function diaspora_dispatch($importer,$msg) {
 		$base = $xmlbase['participation'];
 		$fn = 'participation';
 	}
+	elseif($xmlbase['event']) {
+		$base = $xmlbase['event'];
+		$fn = 'event';
+	}
+	elseif($xmlbase['event_participation']) {
+		$base = $xmlbase['event_participation'];
+		$fn = 'event_participation';
+	}
 	elseif($xmlbase['account_deletion']) {
 		$base = $xmlbase['account_deletion'];
 		$fn = 'account_deletion';

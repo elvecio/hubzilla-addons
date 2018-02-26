@@ -46,7 +46,7 @@ function gnusoc_load() {
 	register_hook('atom_entry','addon/gnusoc/gnusoc.php','gnusoc_atom_entry');
 	register_hook('import_author','addon/gnusoc/gnusoc.php','gnusoc_import_author');
 	register_hook('parse_atom','addon/gnusoc/gnusoc.php','gnusoc_parse_atom');
-	register_hook('atom_feed','addon/gnusoc/gnusoc.php','gnusoc_atom_feed');
+	register_hook('atom_feed_top','addon/gnusoc/gnusoc.php','gnusoc_atom_feed_top');
 	register_hook('cron_daily','addon/gnusoc/gnusoc.php','gnusoc_cron_daily');
 	register_hook('can_comment_on_post','addon/gnusoc/gnusoc.php','gnusoc_can_comment_on_post');
 	register_hook('connection_remove','addon/gnusoc/gnusoc.php','gnusoc_connection_remove');
@@ -75,7 +75,7 @@ function gnusoc_unload() {
 	unregister_hook('atom_entry','addon/gnusoc/gnusoc.php','gnusoc_atom_entry');
 	unregister_hook('import_author','addon/gnusoc/gnusoc.php','gnusoc_import_author');
 	unregister_hook('parse_atom','addon/gnusoc/gnusoc.php','gnusoc_parse_atom');
-	unregister_hook('atom_feed','addon/gnusoc/gnusoc.php','gnusoc_atom_feed');
+	unregister_hook('atom_feed_top','addon/gnusoc/gnusoc.php','gnusoc_atom_feed_top');
 	unregister_hook('cron_daily','addon/gnusoc/gnusoc.php','gnusoc_cron_daily');
 	unregister_hook('can_comment_on_post','addon/gnusoc/gnusoc.php','gnusoc_can_comment_on_post');
 	unregister_hook('connection_remove','addon/gnusoc/gnusoc.php','gnusoc_connection_remove');
@@ -801,21 +801,17 @@ function gnusoc_atom_entry($a,&$b) {
 
 }
 
-function gnusoc_atom_feed($a,&$b) {
-    $x = preg_match('|' . 'href\=(.*?)' . z_root() . '/channel/(.*?) |',$b,$matches);
+function gnusoc_atom_feed_top($a,&$b) {
 
-	$y = preg_match('|' . z_root() . '/photo/profile/l/(.*?)"|',$b,$matches2);
-
-    if($x) {
-        $b = str_replace('</generator>','</generator>' . "\r\n  " .
-        '<link rel="salmon" href="' . z_root() . '/salmon/' . $matches[2] . ' />' . "\r\n  " .
-        '<link rel="http://salmon-protocol.org/ns/salmon-replies" href="' . z_root() . '/salmon/' . $matches[2] . ' />' . 
+	if($b['channel'] && $b['params']['compat']) {
+        $b['xml'] = str_replace('</generator>','</generator>' . "\r\n  " .
+        '<link rel="salmon" href="' . z_root() . '/salmon/' . $b['channel']['channel_address'] . '" />' . "\r\n  " .
+        '<link rel="http://salmon-protocol.org/ns/salmon-replies" href="' . z_root() . '/salmon/' . $b['channel']['channel_address'] . '" />' . 
 		"\r\n  " .
-        '<link rel="http://salmon-protocol.org/ns/salmon-mention" href="' . z_root() . '/salmon/' . $matches[2] . ' />',$b);
-    }
-	if($y) {
-		$b = str_replace('</generator>','</generator>' . "\r\n  " .
-		'<logo>' . z_root() . '/photo/profile/l/' . $matches2[1] . '</logo>',$b);
+        '<link rel="http://salmon-protocol.org/ns/salmon-mention" href="' . z_root() . '/salmon/' . $b['channel']['channel_address'] . '" />',$b['xml']);
+
+		$b['xml'] = str_replace('</generator>','</generator>' . "\r\n  " .
+		'<logo>' . z_root() . '/photo/profile/l/' . $b['channel']['channel_id'] . '</logo>',$b['xml']);
 	}
 }
 

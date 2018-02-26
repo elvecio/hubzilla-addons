@@ -179,7 +179,7 @@ function openclipatar_profile_photo_content_end(&$a, &$o) {
 	if($_REQUEST['aj']) {
 		if($entries) {
 			$o = replace_macros(get_markup_template('avatar-ajax.tpl', 'addon/openclipatar/'), array(
-				'$use' => t('Use'),
+				'$use' => t('Use this image'),
 				'$entries' => $entries,
 			));
 		} else {
@@ -191,7 +191,7 @@ function openclipatar_profile_photo_content_end(&$a, &$o) {
 		$o .= replace_macros( $t, array(
 			'$selectmsg' => t('Or select from a free OpenClipart.org image:'),
 			'$prefmsg' => $haveprefclips ? ('<div class="openclipatar-prefclipmsg">' . $prefclipmsg . '</div>') : '',
-			'$use' => t('Use'),
+			'$use' => t('Use this image'),
 			'$defsearch' => array('search', t('Search Term'), $search),
 			//'$form_security_token' => get_form_security_token('profile_photo'),
 			'$entries' => $entries,

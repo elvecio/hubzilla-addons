@@ -517,6 +517,7 @@ function activity_mapper($verb) {
 
 	$acts = [
 		'http://activitystrea.ms/schema/1.0/post'      => 'Create',
+		'http://activitystrea.ms/schema/1.0/share'     => 'Announce',
 		'http://activitystrea.ms/schema/1.0/update'    => 'Update',
 		'http://activitystrea.ms/schema/1.0/like'      => 'Like',
 		'http://activitystrea.ms/schema/1.0/favorite'  => 'Like',
@@ -541,7 +542,12 @@ function activity_mapper($verb) {
 	if(strpos($verb,ACTIVITY_POKE) !== false)
 		return 'Activity';
 
-	return false;
+	// We should return false, however this will trigger an uncaught execption  and crash 
+	// the delivery system if encountered by the JSON-LDSignature library
+ 
+	logger('Unmapped activity: ' . $verb);
+	return 'Create';
+//	return false;
 }
 
 
@@ -568,7 +574,12 @@ function activity_obj_mapper($obj) {
 	if(array_key_exists($obj,$objs)) {
 		return $objs[$obj];
 	}
-	return false;
+
+	logger('Unmapped activity object: ' . $obj);
+	return 'Note';
+
+//	return false;
+
 }
 
 
@@ -966,7 +977,7 @@ function as_actor_store($url,$person_obj) {
 
 function as_create_action($channel,$observer_hash,$act) {
 
-	if(in_array($act->obj['type'], [ 'Note', 'Article' ])) {
+	if(in_array($act->obj['type'], [ 'Note', 'Article', 'Video' ])) {
 		as_create_note($channel,$observer_hash,$act);
 	}
 
@@ -984,19 +995,30 @@ function as_announce_action($channel,$observer_hash,$act) {
 
 function as_like_action($channel,$observer_hash,$act) {
 
-	if(in_array($act->obj['type'], [ 'Note', 'Article' ])) {
+	if(in_array($act->obj['type'], [ 'Note', 'Article', 'Video' ])) {
 		as_like_note($channel,$observer_hash,$act);
 	}
 
 
 }
 
+// sort function width decreasing
 
+function as_vid_sort($a,$b) {
+	if($a['width'] === $b['width'])
+		return 0;
+	return (($a['width'] > $b['width']) ? -1 : 1);
+}
 
 function as_create_note($channel,$observer_hash,$act) {
 
 	$s = [];
 
+	// Mastodon only allows visibility in public timelines if the public inbox is listed in the 'to' field.
+	// They are hidden in the public timeline if the public inbox is listed in the 'cc' field.
+	// This is not part of the activitypub protocol - we might change this to show all public posts in pubstream at some point.
+	$pubstream = ((array_key_exists('to', $act->obj) && in_array(ACTIVITY_PUBLIC_INBOX, $act->obj['to'])) ? true : false);
+	$is_sys_channel = is_sys_channel($channel['channel_id']);
 
 	$parent = ((array_key_exists('inReplyTo',$act->obj)) ? urldecode($act->obj['inReplyTo']) : '');
 	if($parent) {
@@ -1011,8 +1033,9 @@ function as_create_note($channel,$observer_hash,$act) {
 			logger('parent not found.');
 			return;
 		}
+
 		if($r[0]['owner_xchan'] === $channel['channel_hash']) {
-			if(! perm_is_allowed($channel['channel_id'],$observer_hash,'post_comments')) {
+			if(! perm_is_allowed($channel['channel_id'],$observer_hash,'send_stream') && ! ($is_sys_channel && $pubstream)) {
 				logger('no comment permission.');
 				return;
 			}
@@ -1021,13 +1044,14 @@ function as_create_note($channel,$observer_hash,$act) {
 		$s['parent_mid'] = $r[0]['mid'];
 		$s['owner_xchan'] = $r[0]['owner_xchan'];
 		$s['author_xchan'] = $observer_hash;
+
 	}
 	else {
-		if(! perm_is_allowed($channel['channel_id'],$observer_hash,'send_stream')) {
+		if(! perm_is_allowed($channel['channel_id'],$observer_hash,'send_stream') && ! ($is_sys_channel && $pubstream)) {
 			logger('no permission');
 			return;
 		}
-		$s['owner_xchan'] = $s['author_xchan'] = $observer_hash;		
+		$s['owner_xchan'] = $s['author_xchan'] = $observer_hash;
 	}
 	
 	$abook = q("select * from abook where abook_xchan = '%s' and abook_channel = %d limit 1",
@@ -1102,6 +1126,39 @@ function as_create_note($channel,$observer_hash,$act) {
 			if(strpos($img['type'],'image') !== false) {
 				$s['body'] .= "\n\n" . '[img]' . $img['href'] . '[/img]';
 			}
+			if(array_key_exists('mediaType',$img) && strpos('video',$img['mediaType']) === 0) {
+				$s['body'] .= "\n\n" . '[video]' . $img['href'] . '[/video]';
+ 			}
+			if(array_key_exists('mediaType',$img) && strpos('audio',$img['mediaType']) === 0) {
+				$s['body'] .= "\n\n" . '[audio]' . $img['href'] . '[/audio]';
+ 			}
+		}
+	}
+
+	// we will need a hook here to extract magnet links e.g. peertube
+	// right now just link to the largest mp4 we find that will fit in our
+	// standard content region
+
+	if($act->obj['type'] === 'Video') {
+		$mps = [];
+		if(array_key_exists('url',$act->obj) && is_array($act->obj['url'])) {
+			foreach($act->obj['url'] as $vurl) {
+				if($vurl['mediaType'] === 'video/mp4') {
+					if(! array_key_exists('width',$vurl)) {
+						$vurl['width'] = 0;
+					}
+					$mps[] = $vurl;
+				}
+			}
+		}
+		if($mps) {
+			usort($mps,'as_vid_sort');
+			foreach($mps as $m) {
+				if(intval($m['width']) < 500) {
+					$s['body'] .= "\n\n" . '[video]' . $m['href'] . '[/video]';
+					break;
+				}
+			}
 		}
 	}
 
@@ -1132,7 +1189,14 @@ function as_announce_note($channel,$observer_hash,$act) {
 
 	$s = [];
 
-	if(! perm_is_allowed($channel['channel_id'],$observer_hash,'send_stream')) {
+	$is_sys_channel = is_sys_channel($channel['channel_id']);
+
+	// Mastodon only allows visibility in public timelines if the public inbox is listed in the 'to' field.
+	// They are hidden in the public timeline if the public inbox is listed in the 'cc' field.
+	// This is not part of the activitypub protocol - we might change this to show all public posts in pubstream at some point.
+	$pubstream = ((array_key_exists('to', $act->obj) && in_array(ACTIVITY_PUBLIC_INBOX, $act->obj['to'])) ? true : false);
+
+	if(! perm_is_allowed($channel['channel_id'],$observer_hash,'send_stream') && ! ($is_sys_channel && $pubstream)) {
 		logger('no permission');
 		return;
 	}
