@@ -38,7 +38,8 @@ function pubcrawl_load() {
 		'personal_xrd'               => 'pubcrawl_personal_xrd',
 		'queue_deliver'              => 'pubcrawl_queue_deliver',
 		'import_author'              => 'pubcrawl_import_author',
-		'channel_protocols'          => 'pubcrawl_channel_protocols'
+		'channel_protocols'          => 'pubcrawl_channel_protocols',
+		'create_identity'            => 'pubcrawl_create_identity'
 	]);
 }
 
@@ -87,6 +88,11 @@ function pubcrawl_channel_links(&$b) {
 function pubcrawl_webfinger(&$b) {
 	if(! $b['channel'])
 		return;
+
+	if(! get_pconfig($b['channel']['channel_id'],'system','activitypub_allowed'))
+		return;
+
+	$b['result']['properties']['http://purl.org/zot/federation'] .= ',activitypub';
 
 	$b['result']['links'][] = [ 
 		'rel'  => 'self', 
@@ -168,10 +174,10 @@ function pubcrawl_discover_channel_webfinger(&$b) {
 
 function pubcrawl_import_author(&$b) {
 
-	if(! $b['url'])
+	if(! $b['author']['url'])
 		return;
 
-	$url = $b['url'];
+	$url = $b['author']['url'];
 
 	// let somebody upgrade from an 'unknown' connection which has no xchan_addr
 	$r = q("select xchan_hash, xchan_url, xchan_name, xchan_photo_s from xchan where xchan_url = '%s' limit 1",
@@ -184,7 +190,8 @@ function pubcrawl_import_author(&$b) {
 	}
 	if($r) {
 		logger('in_cache: ' . $r[0]['xchan_name'], LOGGER_DATA);
-		return $r[0];
+		$b['result'] = $r[0]['xchan_hash'];
+		return;
 	}
 
 	$x = discover_by_webbie($url);
@@ -199,7 +206,8 @@ function pubcrawl_import_author(&$b) {
 			);
 		}
 		if($r) {
-			return $r[0];
+			$b['result'] = $r[0]['xchan_hash'];
+			return;
 		}
 	}
 
@@ -1049,9 +1057,8 @@ function pubcrawl_feature_settings(&$s) {
 		'$field'	=> array('activitypub_send_media', t('Send multi-media HTML articles'), 1 - intval(get_pconfig(local_channel(),'activitypub','downgrade_media',true)), t('Not supported by some microblog services such as Mastodon'), $yes_no),
 	));
 
-
 	$s .= replace_macros(get_markup_template('generic_addon_settings.tpl'), array(
-		'$addon' 	=> array('pubcrawl', t('ActivityPub Protocol Settings'), '', t('Submit')),
+		'$addon' 	=> array('pubcrawl', '<img src="addon/pubcrawl/pubcrawl.png" style="width:auto; height:1em; margin:-3px 5px 0px 0px;">' . t('ActivityPub Protocol Settings'), '', t('Submit')),
 		'$content'	=> $sc
 	));
 
@@ -1059,3 +1066,10 @@ function pubcrawl_feature_settings(&$s) {
 
 }
 
+function pubcrawl_create_identity($b) {
+
+	if(get_config('system','activitypub_allowed')) {
+		set_pconfig($b,'system','activitypub_allowed','1');
+	}
+
+}

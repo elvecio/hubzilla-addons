@@ -832,8 +832,8 @@ function diaspora_profile_change($channel,$recip,$public_batch = false,$profile_
 		}
 
 		$outmsg = arrtoxml('profile',$msg);
-		$slap = diaspora_prepare_outbound($outmsg,$owner,$contact,$owner['channel_prvkey'],$contact['xchan_pubkey'],$public_batch);
-		return(diaspora_queue($owner,$contact,$slap,$public_batch,$item['mid']));
+		$slap = diaspora_prepare_outbound($outmsg,$owner,$recip,$owner['channel_prvkey'],$recip['xchan_pubkey'],$public_batch);
+		return(diaspora_queue($owner,$recip,$slap,$public_batch,$item['mid']));
 	}
 
 	$tpl = get_markup_template('diaspora_profile.tpl','addon/diaspora');

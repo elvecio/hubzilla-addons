@@ -117,7 +117,7 @@ function superblock_addon_settings(&$a,&$s) {
 	]);
 
 	$s .= replace_macros(get_markup_template('generic_addon_settings.tpl'), array(
-		'$addon' 	=> array('superblock', t('"Superblock" Settings'), '', t('Submit')),
+		'$addon' 	=> array('superblock', t('Superblock Settings'), '', t('Submit')),
 		'$content'	=> $sc
 	));
 

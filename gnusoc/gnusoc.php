@@ -108,6 +108,8 @@ function gnusoc_webfinger(&$a,&$b) {
 	if(! get_pconfig($b['channel']['channel_id'],'system','gnusoc_allowed'))
 		return;
 
+	$b['result']['properties']['http://purl.org/zot/federation'] .= ',ostatus';
+
 	$b['result']['links'][] = array('rel' => 'salmon', 'href' => z_root() . '/salmon/' . $b['channel']['channel_address']);
 	$b['result']['links'][] = array('rel' => 'http://salmon-protocol.org/ns/salmon-replies', 'href' => z_root() . '/salmon/' . $b['channel']['channel_address']);
 	$b['result']['links'][] = array('rel' => 'http://salmon-protocol.org/ns/salmon-mention', 'href' => z_root() . '/salmon/' . $b['channel']['channel_address']);
