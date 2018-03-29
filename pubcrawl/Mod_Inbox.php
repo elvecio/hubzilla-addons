@@ -46,16 +46,19 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 		if($AS->type == 'Announce' && is_array($AS->obj) && array_key_exists('attributedTo',$AS->obj)) {
 
-			$arr = [
-				'url' => $AS->obj['attributedTo']
-			];
+			$arr['author']['url'] = $AS->obj['attributedTo'];
 
-			$x = pubcrawl_import_author($arr);
+			pubcrawl_import_author($arr);
 
-			if($x) {
-				$AS->sharee = $x;
+			if($arr['result']) {
+				$x['hash'] = $arr['result'];
 			}
 			else {
+				$x['address'] = $AS->obj['attributedTo'];
+			}
+
+			$AS->sharee = xchan_fetch($x);
+			if(! $AS->sharee) {
 				//TODO: what do we do with sharees from other networks (for now mainly gnusocial)?
 				logger('got announce activity but could not import share author');
 				return;

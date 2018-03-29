@@ -235,7 +235,7 @@ function diaspora_build_status($item,$owner) {
 
 	$ev = bbtoevent($item['body']);
 
-	$body = bb_to_markdown($item['body'], [ 'diaspora' ]);
+	$body = bb_to_markdown((($title) ? '[h3]' . $title . '[/h3]' . "\n" : '') . $item['body'], [ 'diaspora' ]);
 
 	$ev_obj = null;
 

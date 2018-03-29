@@ -624,6 +624,7 @@ class Diaspora_Receiver {
 			. "' profile='" . $orig_author_link 
 			. "' avatar='"  . $orig_author_photo 
 			. "' link='"    . $orig_url
+			. "' auth='"    . 'false'
 			. "' posted='"  . datetime_convert('UTC','UTC',$this->get_property('created_at',$source_xml['status_message']))
 			. "' message_id='" . $this->get_property('guid',$source_xml['status_message'])
 	 		. "']" . $body . "[/share]";
@@ -1140,8 +1141,6 @@ class Diaspora_Receiver {
 
 			$sig = ''; // placeholder
 
-			// @fixme - use mail_store or mail_store_lowlevel
-
 			$x = mail_store( [
 				'account_id' => intval($this->importer['channel_account_id']),
 				'channel_id' => intval($this->importer['channel_id']),
@@ -1168,14 +1167,6 @@ class Diaspora_Receiver {
 				intval($this->importer['channel_id'])
 			);
 
-			\Zotlabs\Lib\Enotify::submit(array(
-				'from_xchan' => $person['xchan_hash'],
-				'to_xchan' => $this->importer['channel_hash'],
-				'type' => NOTIFY_MAIL,
-				'item' => $z[0],
-				'verb' => ACTIVITY_POST,
-				'otype' => 'mail'
-			));
 		}
 
 		return;
@@ -1306,15 +1297,6 @@ class Diaspora_Receiver {
 			dbesc($msg_guid),
 			intval($this->importer['channel_id'])
 		);
-
-		\Zotlabs\Lib\Enotify::submit(array(
-			'from_xchan' => $person['xchan_hash'],
-			'to_xchan' => $this->importer['channel_hash'],
-			'type' => NOTIFY_MAIL,
-			'item' => $z[0],
-			'verb' => ACTIVITY_POST,
-			'otype' => 'mail'
-		));
 
 		return;
 	}
@@ -1791,6 +1773,13 @@ class Diaspora_Receiver {
 
 		$images = import_xchan_photo($image_url,$contact['xchan_hash']);
 	
+		// Somebody is sending us birthday arrays.
+		
+		if(is_array($birthday)) {
+			logger('Illegal input: Diaspora birthday is an array. ' . print_r($this->xmlbase,true));
+			return 202;
+		}
+
 		// Generic birthday. We don't know the timezone. The year is irrelevant. 
 
 		if(intval(substr($birthday,0,4)) <= 1004)
@@ -1834,8 +1823,54 @@ class Diaspora_Receiver {
 
 		// not currently handled
 
+		// it isn't clear if we will ever receive an event outside a post/status_message context
+		// and if we do it will be missing important stuff like creation date
+		// and there will also be no way of tying it to a message-id to check for duplication
+
+		// log what we do have and parse whatever we are able 
+		// so at least we won't have to start from scratch when somebody inevitably complains.
+
 		logger('event: ' . print_r($this->xmlbase,true), LOGGER_DATA);
 
+		$datarray = [];
+		$ev = [];
+
+		$dts = $this->get_property('start');
+		if($dts) {
+			$ev['dtstart'] = datetime_convert('UTC','UTC', $dts);
+		}
+		$dte = $this->get_property('end');
+		if($dte) {
+			$ev['dtend'] = datetime_convert('UTC','UTC', $dte);
+		}
+		else {
+			$ev['nofinish'] = true;
+		}
+
+		$ev['event_hash'] = notags($this->get_property('guid'));
+		$ev['summary'] = escape_tags($this->get_property('summary'));
+		$ev['adjust'] = (($this->get_property('all_day')) ? false : true);
+		$ev_timezone = notags($this->get_property('timezone'));
+		$ev['description'] = markdown_to_bb($this->get_property('description'));
+		$ev_loc = $this->get_property('location');
+		if($ev_loc) {
+			$ev_address = escape_tags($this->get_property('address',$ev_loc));
+			$ev_lat = notags($this->get_property('lat',$ev_loc));
+			$ev_lon = notags($this->get_property('lon',$ev_loc));
+		}
+		$ev['location'] = '';
+		if($ev_address) {
+			$ev['location'] .=  '[map]' . $ev_address . '[/map]' . "\n\n";
+		}
+		if(! (is_null($ev_lat) || is_null($ev_lon))) {
+			$ev['location'] .= '[map=' . $ev_lat . ',' . $ev_lon . ']';
+		}
+
+		if($ev['start'] && $ev['event_hash'] && $ev['summary']) {
+			$datarray['body'] = format_event_bbcode($ev);
+		}
+
+		set_iconfig($datarray,'system','event_id',$ev['event_hash'],true);
 
 	}
 

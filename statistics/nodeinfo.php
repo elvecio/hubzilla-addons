@@ -19,7 +19,8 @@ function nodeinfo_content(&$a) {
 				'usage' => [ 'users' => [ 'total' => 1, 'activeHalfyear' => 1, 'activeMonth' => 1 ],
 					'localPosts' => 1,
 					'localComments' => 1
-				]
+				],
+				'metadata' => [ 'nodeName' => get_config('system','sitename') ]
 			];
 		}
 		if(argc() > 1 && argv(1) === '2.0') {
@@ -32,7 +33,8 @@ function nodeinfo_content(&$a) {
 				'usage' => [ 'users' => [ 'total' => 1, 'activeHalfyear' => 1, 'activeMonth' => 1 ],
 					'localPosts' => 1,
 					'localComments' => 1
-				]
+				],
+				'metadata' => [ 'nodeName' => get_config('system','sitename') ]
 			];
 		}
 
@@ -40,20 +42,21 @@ function nodeinfo_content(&$a) {
 	elseif(argc() > 1 && argv(1) === '1.0') {
 		$arr = array(
 
-			'version' => '1.0',
-			'software' => array('name' => 'redmatrix','version' => Zotlabs\Lib\System::get_project_version()),
-			'protocols' => array('inbound' => array('redmatrix'), 'outbound' => array('redmatrix')),
-			'services' => array(),
+			'version'           => '1.0',
+			'software'          => [ 'name' => 'redmatrix','version' => Zotlabs\Lib\System::get_project_version()],
+			'protocols'         => [ 'inbound' => array('redmatrix'), 'outbound' => [ 'redmatrix'] ],
+			'services'          => [],
 			'openRegistrations' => ((intval(get_config('system','register_policy')) === REGISTER_OPEN) ? true : false),
-			'usage' => array(
-				'users' => array(
+			'usage' => [
+				'users' => [
 					'total' => intval(get_config('system','channels_total_stat')),
 					'activeHalfyear' => intval(get_config('system','channels_active_halfyear_stat')),
 					'activeMonth' => intval(get_config('system','channels_active_monthly_stat')),
-				),
+				],
 				'localPosts' => intval(get_config('system','local_posts_stat')),
 				'localComments' => intval(get_config('system','local_comments_stat')),
-			)
+			],
+			'metadata' => [ 'nodeName' => get_config('system','sitename') ]
 		);
 
 		if(in_array('diaspora',App::$plugins)) {
@@ -66,13 +69,9 @@ function nodeinfo_content(&$a) {
 			$arr['protocols']['outbound'][] = 'gnusocial';
 		}
 
-//		if(in_array('friendica',App::$plugins)) {
-//			$arr['protocols']['inbound'][] = 'friendica';
-//			$arr['protocols']['outbound'][] = 'friendica';
-//		}
 
-		$services = array();
-		$iservices = array();
+		$services = [];
+		$iservices = [];
 
 		if(in_array('diaspost',App::$plugins))
 			$services[] = 'diaspora';
@@ -112,24 +111,24 @@ function nodeinfo_content(&$a) {
 
 	}
 	elseif(argc() > 1 && argv(1) === '2.0') {
-		$arr = array(
-
-			'version' => '2.0',
-			'software' => array('name' => strtolower(Zotlabs\Lib\System::get_platform_name()),'version' => Zotlabs\Lib\System::get_project_version()),
-			'protocols' => [ 'zot' ],
-			'services' => array(),
+		$arr = [
+			'version'           => '2.0',
+			'software'          =>  [ 'name' => strtolower(Zotlabs\Lib\System::get_platform_name()),'version' => Zotlabs\Lib\System::get_project_version() ],
+			'protocols'         => [ 'zot' ],
+			'services'          => [],
 			'openRegistrations' => ((intval(get_config('system','register_policy')) === REGISTER_OPEN) ? true : false),
 
-			'usage' => array(
-				'users' => array(
+			'usage' => [
+				'users' => [
 					'total' => intval(get_config('system','channels_total_stat')),
 					'activeHalfyear' => intval(get_config('system','channels_active_halfyear_stat')),
 					'activeMonth' => intval(get_config('system','channels_active_monthly_stat')),
-				),
+				],
 				'localPosts' => intval(get_config('system','local_posts_stat')),
 				'localComments' => intval(get_config('system','local_comments_stat')),
-			)
-		);
+			],
+			'metadata' => [ 'nodeName' => get_config('system','sitename') ]
+		];
 
 		if(in_array('diaspora',App::$plugins)) {
 			$arr['protocols'][] = 'diaspora';
@@ -138,10 +137,6 @@ function nodeinfo_content(&$a) {
 		if(in_array('gnusoc',App::$plugins)) {
 			$arr['protocols'][] = 'ostatus';
 		}
-
-//		if(in_array('friendica',App::$plugins)) {
-//			$arr['protocols'][] = 'friendica';
-//		}
 
 		if(in_array('pubcrawl',App::$plugins)) {
 			$arr['protocols'][] = 'activitypub';
@@ -173,8 +168,6 @@ function nodeinfo_content(&$a) {
 		if(in_array('wppost',App::$plugins)) {
 			$services[] = 'wordpress';
 
-// apparently this is not legal in nodeinfo
-//			$iservices[] = 'wordpress';
 		}
 		if(in_array('xmpp',App::$plugins)) {
 			$services[] = 'xmpp';
@@ -184,10 +177,6 @@ function nodeinfo_content(&$a) {
 			$arr['services']['outbound'] = $services;
 		if($iservices)
 			$arr['services']['inbound'] = $iservices;
-
-		$arr['metadata'] = [
-			'nodeName' => get_config('system','sitename')
-		];
 
 	}
 

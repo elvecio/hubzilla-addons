@@ -33,7 +33,7 @@ class Emojione {
 				if(strpos($lv['shortname'],':tone') === 0)
 					continue;
 				$x['texts'][] = $lv['shortname'];
-				$x['icons'][] = '<img class="smiley emoji" height="16" width="16" src="addon/emojione/emojis/' . $lv['unicode'] . '.png' . '" alt="' . $lv['name'] . '" />';
+				$x['icons'][] = '<img class="smiley emoji" style="height: 1.2em; width: 1.2em;" src="addon/emojione/emojis/' . $lv['unicode'] . '.png' . '" alt="' . $lv['name'] . '" />';
 			}
 		}
 	}

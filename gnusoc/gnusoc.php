@@ -455,6 +455,11 @@ function gnusoc_queue_deliver(&$a,&$b) {
 
 function gnusoc_remote_follow($channel,$xchan) {
 
+	// GNU-Social is always fetching the feed from the author->id URL if a channel is not known to them.
+	// Link them to a page where they get a feed with salmon links -> /ofeed.
+	// /ochannel will redirect to /channel in case somebody lands there with a browser.
+	$channel['xchan_url'] = z_root() . '/ochannel/' . $channel['channel_address'];
+
 	$slap = replace_macros(get_markup_template('follow_slap.tpl','addon/gnusoc/'),array(
 		'$author' => atom_render_author('author',$channel),
 		'$object' => atom_render_author('as:object',$xchan),
@@ -578,6 +583,11 @@ function gnusoc_notifier_process(&$a,&$b) {
 
 	if(! $recips)
 		return;
+
+	// GNU-Social is always fetching the feed from the author->id URL if a channel is not known to them.
+	// Link them to a page where they get a feed with salmon links -> /ofeed.
+	// /ochannel will redirect to /channel in case somebody lands there with a browser.
+	$b['target_item']['author']['xchan_url'] = z_root() . '/ochannel/' . $b['target_item']['author']['xchan_name'];
 
 	$slap = atom_entry($b['target_item'],'html',null,null,false,'',true);
 
