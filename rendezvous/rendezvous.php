@@ -4,7 +4,7 @@
  *
  * Name: Rendezvous
  * Description: Group sharing of real-time location on a dynamic map
- * Version: 1.0.9
+ * Version: 1.0.10
  * Author: Andrew Manning <andrew@reticu.li>
  * MinVersion: 1.14
  *
@@ -18,7 +18,7 @@ function rendezvous_module() {}
  * @return string Current plugin version
  */
 function rendezvous_get_version() {
-    return '1.0.9';
+    return '1.0.10';
 }
 
 function rendezvous_load() {
@@ -228,9 +228,9 @@ function rendezvous_post($a) {
 						}
 						if($html === '') {
 								$html = '
-										<div class="descriptive-text">
-										Press the button above to create a rendezvous!
-										</div>
+										<div class="descriptive-text">'.
+										t('You have no rendezvous. Press the button above to create a rendezvous!')
+										.'</div>
 								';
 						}
 						rendezvous_api_return(array('groups' => $x['groups'], 'html' => $html));

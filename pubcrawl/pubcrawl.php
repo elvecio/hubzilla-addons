@@ -384,6 +384,13 @@ function pubcrawl_notifier_process(&$arr) {
 		if(strpos($arr['target_item']['author']['xchan_url'],z_root() . '/guest/') !== false) {
 			return;
 		}
+
+		// AP does not allow any messages where the sender is different from the actor
+
+		if($arr['channel']['channel_hash'] != $arr['target_item']['author_xchan']) {
+			return;
+		}
+
 		
 	}
 
@@ -393,6 +400,7 @@ function pubcrawl_notifier_process(&$arr) {
 		logger('pubcrawl: disallowed for channel ' . $arr['channel']['channel_name']);
 		return;
 	}
+
 
 	if($arr['location'])
 		return;

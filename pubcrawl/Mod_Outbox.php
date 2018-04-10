@@ -30,9 +30,9 @@ class Outbox extends \Zotlabs\Web\Controller {
 		$params['type']      = 'json';
 		$params['pages']     = ((x($_REQUEST,'pages'))      ? intval($_REQUEST['pages'])    : 0);
 		$params['top']       = ((x($_REQUEST,'top'))        ? intval($_REQUEST['top'])      : 0);
-		$params['start']     = ((x($params,'start'))        ? intval($params['start'])      : 0);
-		$params['records']   = ((x($params,'records'))      ? intval($params['records'])    : 60);
-		$params['direction'] = ((x($params,'direction'))    ? dbesc($params['direction'])   : 'desc');
+		$params['start']     = ((x($_REQUEST,'start'))      ? intval($_REQUEST['start'])    : 0);
+		$params['records']   = ((x($_REQUEST,'records'))    ? intval($_REQUEST['records'])  : 60);
+		$params['direction'] = ((x($_REQUEST,'direction'))  ? dbesc($_REQUEST['direction']) : 'desc');
 		$params['cat']       = ((x($_REQUEST,'cat'))        ? escape_tags($_REQUEST['cat']) : '');
 		$params['compat']    = ((x($_REQUEST,'compat'))     ? intval($_REQUEST['compat'])   : 1);	
 

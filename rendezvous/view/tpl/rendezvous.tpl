@@ -1,15 +1,13 @@
 <div class="map-setting-block">
-		<h3>Rendezvous
-				<span class="pull-right">
-						<button id="add-new-group" class="btn btn-success btn-xs" title="{{$addnewrendezvous}}">
-								<i class="fa fa-plus"></i><span>&nbsp;{{$addnewrendezvous}}</span>
-						</button>
-				</span>
-		</h3>
+		<h3>Rendezvous</h3>
 		<div class="descriptive-text">
 				{{$instructions}}
 		</div>
 		<div class="clear" ></div>
+		<br>
+		<button id="add-new-group" class="btn btn-success btn-xs" title="{{$addnewrendezvous}}">
+				<i class="fa fa-plus"></i><span>&nbsp;{{$addnewrendezvous}}</span>
+		</button>
 		<div id="group-list" class="list-group" style="margin-top: 20px;margin-bottom: 20px;"></div>
 </div>
 
@@ -71,7 +69,7 @@
 
 	rv.deleteGroup = function (e) {
 		var clickedEl = $(e.currentTarget);
-		var group = clickedEl.find(".delete-group-id").html();
+		var group = clickedEl.find(".delete-group-id").attr('id');
 		var answer = confirm("Delete rendezvous (" + group + ") ?");
 		if (!answer) {
 			return false;

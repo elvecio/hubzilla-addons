@@ -7,6 +7,9 @@
  *
  */
 
+require_once('library/HTML5/Parser.php');
+
+
 // Please see https://webmention.rocks for test cases. This is a demo plugin which has not been fully tested. 
 
 function webmention_load() {

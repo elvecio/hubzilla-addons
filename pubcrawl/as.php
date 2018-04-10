@@ -215,16 +215,16 @@ function asencode_item($i) {
 		$ret['attachment'] = $a;
 	}
 
-    if($has_images && $ret['type'] === 'Note') {
+	if($has_images && $ret['type'] === 'Note') {
 		$img = [];
-        foreach($images as $match) {
+		foreach($images as $match) {
 			$img[] =  [ 'type' => 'Image', 'url' => $match[2] ]; 
-        }
+		}
 		if(! $ret['attachment'])
 			$ret['attachment'] = [];
 
 		$ret['attachment'] = array_merge($img,$ret['attachment']);
-    }
+	}
 
 	return $ret;
 }
@@ -371,7 +371,7 @@ function asencode_activity($i) {
 			intval($i['parent'])
 		);
 		if($d) {
-			$reply_url = (($i['item_private']) ? $d[0]['xchan_url'] : ACTIVITY_PUBLIC_INBOX);
+			$reply_url = $d[0]['xchan_url'];
 		}
 
 		$reply = true;
@@ -392,34 +392,57 @@ function asencode_activity($i) {
 		$ret['target'] = asencode_object($i['target']);
 	}
 
-	if($reply) {
+	if(! $i['item_private']) {
+		$ret['to'] = [ ACTIVITY_PUBLIC_INBOX ];
+
+		if(!$reply && $i['item_origin']) {
+			$ret['cc'] = [ z_root() . '/followers/' . substr($i['owner']['xchan_addr'],0,strpos($i['owner']['xchan_addr'],'@')) ];
+		}
+
+		$mentions = as_map_mentions($i);
+		if(count($mentions) > 0) {
+			if(! $ret['cc']) {
+				$ret['cc'] = $mentions;
+			}
+			else {
+				$ret['cc'] = array_merge($ret['cc'], $mentions);
+			}
+		}
+	}
+	elseif($reply) {
 		$ret['to'] = [ $reply_url ];
-		if(in_array($ret['object']['type'], [ 'Note', 'Article' ]))
-			$ret['object']['to'] = $ret['to'];
 	}
 	else {
-		if($i['item_private']) {
-			$ret['bto'] = as_map_acl($i);
-			if(in_array($ret['object']['type'], [ 'Note', 'Article' ]))
-				$ret['object']['bto'] = $ret['bto'];
-		}
-		else {
-			$ret['to'] = [ ACTIVITY_PUBLIC_INBOX ];
-			if(in_array($ret['object']['type'], [ 'Note', 'Article' ]))
-				$ret['object']['to'] = $ret['to'];
+		//$ret['bto'] = as_map_acl($i);
+	}
 
-			if($i['item_origin']) {
-				$ret['cc'] = [ z_root() . '/followers/' . substr($i['owner']['xchan_addr'],0,strpos($i['owner']['xchan_addr'],'@')) ];
-				if(in_array($ret['object']['type'], [ 'Note', 'Article' ]))
-					$ret['object']['cc'] = $ret['cc'];
-			}				
-		}
-	} 
-
+	if(in_array($ret['object']['type'], [ 'Note', 'Article' ])) {
+		if($ret['to'])
+			$ret['object']['to'] = $ret['to'];
+		//if($ret['bto'])
+		//	$ret['object']['bto'] = $ret['bto'];
+		if($ret['cc'])
+			$ret['object']['cc'] = $ret['cc'];
+	}
 
 	return $ret;
 }
 
+function as_map_mentions($i) {
+	if(! $i['term']) {
+		return [];
+	}
+
+	$list = [];
+
+	foreach ($i['term'] as $t) {
+		if($t['ttype'] == TERM_MENTION) {
+			$list[] = $t['url'];
+		}
+	}
+
+	return $list;
+}
 
 function as_map_acl($i) {
 
