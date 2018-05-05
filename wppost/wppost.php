@@ -333,7 +333,7 @@ function wppost_post_remote_end(&$a,&$b) {
 
 	// Now we have to get down and dirty. Was the parent shared with wordpress?
 
-	$r = q("select * from iconfig left join item on iconfig.iid = item.id where cat = 'system' and k = 'wordpress' and iid = %d and item.uid = %d limit 1",
+	$r = q("select * from iconfig left join item on iconfig.iid = item.id where cat = 'system' and k = 'wordpress' and iid = %d and item.uid = %d and item.item_thread_top = 1 and item.item_wall = 1 limit 1",
 		intval($b['parent']),
 		intval($b['uid'])
 	);

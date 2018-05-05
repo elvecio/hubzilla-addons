@@ -1,20 +1,18 @@
 <?php
 function cart_post_manual_checkout_confirm () {
 
-	$nick = cart_getnick();
-
 	$orderhash = cart_getorderhash(false);
 
     if ($_POST["orderhash"] != $orderhash) {
         notice (t('Error: order mismatch. Please try again.') . EOL );
-        goaway(z_root() . '/cart/' . $nick . '/checkout/start');
+        goaway(z_root() . '/cart/' . argv(1) . '/checkout/start');
 	}
 
 	$order = cart_loadorder($orderhash);
 	cart_do_checkout ($order);
 	cart_do_checkout_after ($order);
 	//cart_do_fulfill ($order); //No auto fulfillment on manual payments.
-  //goaway(z_root() . '/cart/' . $nick . '/checkout/complete');
+  //goaway(z_root() . '/cart/' . argv(1) . '/checkout/complete');
 }
 
 function cart_checkout_complete (&$hookdata) {
@@ -22,23 +20,25 @@ function cart_checkout_complete (&$hookdata) {
 
 }
 function cart_checkout_manual (&$hookdata) {
-	$manualpayments = get_pconfig(local_channel(),'cart','enable_manual_payments');
+
+        $page_uid = ((App::$profile_uid) ? App::$profile_uid : local_channel());
+	$manualpayments = get_pconfig($page_uid,'cart','enable_manual_payments');
 	$manualpayments = isset($manualpayments) ? $manualpayments : false;
 
 	if (!$manualpayments) {
 		notice (t('Manual payments are not enabled.') . EOL );
-		goaway(z_root() . '/cart/' . $nick . '/checkout/start');
+		goaway(z_root() . '/cart/' . argv(1) . '/checkout/start');
 	}
 
 	$orderhash = cart_getorderhash(false);
 
 	if (!$orderhash) {
 		notice (t('Order not found.') . EOL );
-		goaway(z_root() . '/cart/' . $nick . '/order');
+		goaway(z_root() . '/cart/' . argv(1) . '/order');
 	}
 
 	$order = cart_loadorder($orderhash);
-	$manualpayopts = get_pconfig(local_channel(),'cart','manual_payopts');
+	$manualpayopts = get_pconfig($page_uid,'cart','manual_payopts');
 	$manualpayopts["order_hash"]=$orderhash;
 	$order["payopts"]=$manualpayopts;
 	$order["finishedtext"]=t("Finished");
@@ -59,7 +59,6 @@ function cart_paymentopts_register_manual (&$hookdata) {
                 goaway('/' . argv(0));
         }
 
-	//$manualpayments = get_pconfig(local_channel(),'cart','enable_manual_payments');
 	$manualpayments = get_pconfig(App::$profile['uid'],'cart','enable_manual_payments');
 	$manualpayments = isset($manualpayments) ? $manualpayments : false;
         logger ("[cart] MANUAL PAYMENTS ($nick , ".$id.") ? ".print_r($manual_payments,true));

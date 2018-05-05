@@ -14,11 +14,13 @@
     {{foreach $items as $item}}
         <tr {{if $item.item_exeption}} class="cart-item-exception"{{/if}}>
             <td {{if $item.item_exeption}} class="cart-item-exception"{{/if}}>{{$item.item_desc}}
-            {{if $item.xtrahtml}}
-            {{/if}}
             </td>
             <td style="text-align:right;" {{if $item.item_exeption}} class="cart-item-exception"{{/if}}>{{$item.item_price}}</td>
             <td style="text-align:right;" {{if $item.item_exeption}} class="cart-item-exception"{{/if}}>{{$item.extended}}</td>
+        </tr>
+        <tr><td colspan=3>
+            {{include "./myshop_order_item_xtrahtml.tpl"}}
+            </td>
         </tr>
     {{/foreach}}
     <tr>
@@ -44,5 +46,34 @@
     </tr>
     {{/if}}
     </table>
+    <div>
+      {{if !$order_paid}}
+      <form method="post">
+        <input type=hidden name="form_security_token" value="{{$security_token}}">
+        <input type=hidden name="cart_posthook" value="myshop_order_markpaid">
+        <input type=hidden name="orderhash" value="{{$order_hash}}">
+        <input type=hidden name="action" value="markpaid">
+        <button class="btn btn-primary" type="submit" name="Confirm" id="cart-payment-button" class="cart-payment-button" value="Confirm">Mark Paid</button>
+      </form>
+      {{/if}}
+      <hr>
+      <h3>Order Notes</h3>
+      <ul>
+      {{foreach $order_meta.notes as $note}}
+        <li>{{$note}}</li>
+      {{/foreach}}
+      </ul>
+      <hr>
+      <h3>Add Order Note</h3>
+      <div class="cart-myshop-ordernotes-form">
+      <form method="post">
+      <input type=hidden name="form_security_token" value="{{$security_token}}">
+      <input type="hidden" name="cart_posthook" value="myshop_add_ordernote">
+      <textarea name="notetext" rows=3 cols=80></textarea>
+      <button class="btn btn-primary" type="submit" name="add" id="cart-myshop-add-item-note" value="add">Add Note</button>
+      </form>
+      </div>
+
+    </div>
   </div>
 </div>

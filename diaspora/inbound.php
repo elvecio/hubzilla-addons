@@ -85,7 +85,28 @@ function diaspora_dispatch($importer,$msg) {
 		return;
 	}
 
-	$parsed_xml = xml2array($msg['message'],false,0,'tag');
+
+	/**
+	 * xml2array is based on libxml(/expat?) which loses whitespace in Cyrillic text presented as HTML entities
+	 * Here is a test string. The first space character is nearly always lost in parsing when included in an XML tagged structure. 
+	 * Spaces after punctuation seem to be preserved. We've ruled out character encoding/charset specification issues but 
+	 * clearly there is a character encoding/charset issue involved. When called with a custom libxml parser, the content is mangled
+	 * before it ever reaches a parsing callback. 
+	 * &#x41D;&#x430;&#x447;&#x430;&#x43B; &#x437;&#x430;&#x43C;&#x435;&#x447;&#x430;&#x442;&#x44C;, &#x447;&#x442;&#x43E; &#x43F;&#x43E;&#x440;&#x43D;&#x43E;&#x441;&#x43F;&#x430;&#x43C; &#x434;&#x43E;&#x431;&#x440;&#x430;&#x43B;&#x441;&#x44F; &#x434;&#x43E; &#x444;&#x435;&#x434;&#x435;&#x440;&#x430;&#x442;&#x438;&#x432;&#x43D;&#x44B;&#x445; &#x441;&#x435;&#x442;&#x435;&#x439;. &#x41D;&#x430;&#x43F;&#x440;&#x438;&#x43C;&#x435;&#x440;, &#x43A; &#x43D;&#x435;&#x441;&#x43A;&#x43E;&#x43B;&#x44C;&#x43A;&#x438;&#x43C; &#x43F;&#x43E;&#x441;&#x442;&#x430;&#x43C;
+	 * parse_xml_string() uses simplexml and doesn't have this issue, but cannot be easily used with XML that provides more structure
+	 * (attributes and namespaces). Therefore we can't easily use this to parse salmon magic envelopes. At this higher level, we can 
+	 * use xml2array() however because the unicode content has been base64'd and doesn't trigger the bug. 
+	 * @FIXME
+	 * We're using parse_xml_string() with some additional hacks to make the output resemble the simple case of xml2array() 
+	 * Ideally we^H^Hyou should figure out what's wrong with libxml and figure out how to get the correct output from xml2array()
+	 * or get the root cause fixed upstream in libxml and php.
+	 */
+
+	$oxml = parse_xml_string($msg['message'],false);
+	$pxml = sxml2array($oxml);
+	$parsed_xml = [ strtolower($oxml->getName()) => $pxml ];
+
+	//	$parsed_xml = xml2array($msg['message'],false,0,'tag');
 
 	if($parsed_xml) {
 		if(array_key_exists('xml',$parsed_xml) && array_key_exists('post',$parsed_xml['xml']))

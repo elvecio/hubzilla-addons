@@ -29,7 +29,7 @@ function build_cat($seed=''){
     );
 
     // create backgound
-    $cat = @imagecreatetruecolor(70, 70)
+    $cat = @imagecreatetruecolor(300, 300)
         or die("GD image create failed");
     $white = imagecolorallocate($cat, 255, 255, 255);
     imagefill($cat,0,0,$white);
@@ -41,7 +41,7 @@ function build_cat($seed=''){
         $im = @imagecreatefrompng($file);
         if(!$im) die('Failed to load '.$file);
         imageSaveAlpha($im, true);
-        imagecopy($cat,$im,0,0,0,0,70,70);
+        imagecopy($cat,$im,0,0,0,0,300,300);
         imagedestroy($im);
     }
 
@@ -51,8 +51,8 @@ function build_cat($seed=''){
     header('Pragma: public');
     header('Cache-Control: max-age=86400');
     header('Expires: '. gmdate('D, d M Y H:i:s \G\M\T', time() + 86400));
-    header('Content-Type: image/jpg');
-    imagejpeg($cat, NULL, 90);
+    header('Content-Type: image/png');
+    imagepng($cat, NULL, 9);
     imagedestroy($cat);
 }
 

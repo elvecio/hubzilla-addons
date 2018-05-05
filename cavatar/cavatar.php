@@ -2,7 +2,7 @@
 
 /**
  * Name: Cavatar
- * Description: create random cat-avatar for default profile photo (primarily for reference and entertainment use: generated images are grainy)
+ * Description: create random cat-avatar for default profile photo
  * Version: 1.0
  *
  */

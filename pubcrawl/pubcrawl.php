@@ -124,8 +124,23 @@ function pubcrawl_discover_channel_webfinger(&$b) {
 	$x        = $b['webfinger'];
 	$protocol = $b['protocol'];
 
+	logger('probing: activitypub');
+
 	if($protocol && strtolower($protocol) !== 'activitypub')
 		return;
+
+	$address = EMPTY_STR;
+
+	if(array_key_exists('subject',$x) && strpos($x['subject'],'acct:') === 0)
+		$address = str_replace('acct:','',$x['subject']);
+	if(array_key_exists('aliases',$x) && count($x['aliases'])) {
+		foreach($x['aliases'] as $a) {
+			if(strpos($a,'acct:') === 0) {
+				$address = str_replace('acct:','',$a);
+				break;
+			}
+		}
+	}	
 
     if(strpos($url,'@') && $x && array_key_exists('links',$x) && $x['links']) {
         foreach($x['links'] as $link) {
@@ -168,6 +183,18 @@ function pubcrawl_discover_channel_webfinger(&$b) {
 
 	as_actor_store($url,$person_obj);
 
+	if($address) {
+		q("update xchan set xchan_addr = '%s' where xchan_hash = '%s' and xchan_network = 'activitypub'",
+			dbesc($address),
+			dbesc($url)
+		);
+		q("update hubloc set hubloc_addr = '%s' where hubloc_hash = '%s' and hubloc_network = 'activitypub'",
+			dbesc($address),
+			dbesc($url)
+		);
+	}
+
+	$b['xchan']   = $url;
 	$b['success'] = true;
 
 }
@@ -368,6 +395,8 @@ function pubcrawl_notifier_process(&$arr) {
 		return;
 	}
 
+	$signed_msg = null;
+
 	if(array_key_exists('target_item',$arr) && is_array($arr['target_item'])) {
 
 		if(intval($arr['target_item']['item_obscured'])) {
@@ -385,12 +414,19 @@ function pubcrawl_notifier_process(&$arr) {
 			return;
 		}
 
-		// AP does not allow any messages where the sender is different from the actor
+		$signed_msg = get_iconfig($arr['target_item'],'activitypub','rawmsg');
 
-		if($arr['channel']['channel_hash'] != $arr['target_item']['author_xchan']) {
+
+		// If we have an activity already stored with an LD-signature
+		// which we are sending downstream, use that signed activity as is.
+		// The channel will then sign the HTTP transaction. 
+
+		// It is unclear if Mastodon supports the federation delivery model. Initial tests were
+		// inconclusive and the behaviour varied. 
+
+		if(($arr['channel']['channel_hash'] != $arr['target_item']['author_xchan']) && (! $signed_msg)) {
 			return;
 		}
-
 		
 	}
 
@@ -409,16 +445,21 @@ function pubcrawl_notifier_process(&$arr) {
 
 	$prv_recips = $arr['env_recips'];
 
-	$msg = array_merge(['@context' => [
-		ACTIVITYSTREAMS_JSONLD_REV,
-		'https://w3id.org/security/v1',
-		z_root() . ZOT_APSCHEMA_REV
-	]], asencode_activity($target_item));
+
+	if($signed_msg) {
+		$jmsg = $signed_msg;
+	}
+	else {
+		$msg = array_merge(['@context' => [
+			ACTIVITYSTREAMS_JSONLD_REV,
+			'https://w3id.org/security/v1',
+			z_root() . ZOT_APSCHEMA_REV
+		]], asencode_activity($target_item));
 	
-	$msg['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($msg,$arr['channel']);
+		$msg['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($msg,$arr['channel']);
 
-	$jmsg = json_encode($msg, JSON_UNESCAPED_SLASHES);
-
+		$jmsg = json_encode($msg, JSON_UNESCAPED_SLASHES);
+	}
 
 	if($prv_recips) {
 		$hashes = array();

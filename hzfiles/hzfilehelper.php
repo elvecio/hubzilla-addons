@@ -2,6 +2,7 @@
 
 require_once('include/cli_startup.php');
 require_once('include/attach.php');
+require_once('include/import.php');
 
 cli_startup();
 
@@ -36,7 +37,7 @@ $hz_server = urldecode($argv[3]);
 		logger('data: ' . print_r($j,true));
 	}
 	else {
-		$r = sync_files($channel,$j);
+		$r = sync_files($channel,[$j]);
 	}
 
 	killme();

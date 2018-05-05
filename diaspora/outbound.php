@@ -756,6 +756,7 @@ function diaspora_profile_change($channel,$recip,$public_batch = false,$profile_
 	$profile = $r[0];
 
 	$handle = xmlify(channel_reddress($channel));
+	$fn = xmlify($profile['channel_name']);
 	$first = xmlify(((strpos($profile['channel_name'],' '))
 		? trim(substr($profile['channel_name'],0,strpos($profile['channel_name'],' '))) : $profile['channel_name']));
 	$last = xmlify((($first === $profile['channel_name']) ? '' : trim(substr($profile['channel_name'],strlen($first)))));
@@ -811,6 +812,7 @@ function diaspora_profile_change($channel,$recip,$public_batch = false,$profile_
 
 		$msg = [
 			'author'           => $handle,
+			'full_name'        => $fn,
 			'first_name'       => $first,
 			'last_name'        => $last,
 			'image_url'        => $large,

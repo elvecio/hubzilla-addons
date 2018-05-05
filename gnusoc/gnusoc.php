@@ -770,6 +770,15 @@ function gnusoc_follow_from_feed(&$a,&$b) {
 
 				build_sync_packet($importer['channel_id'], array('abook' => array($clone)));
 
+				/* If there is a default group for this channel and friending is automatic, add this member to it */
+	
+				if($importer['channel_default_group'] && $automatic) {
+					require_once('include/group.php');
+					$g = group_rec_byhash($importer['channel_id'],$importer['channel_default_group']);
+					if($g)
+						group_add_member($importer['channel_id'],'',$xchan['xchan_hash'],$g['id']);
+				}
+
 			}
 		}
 	}
@@ -852,8 +861,11 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 	// allow more advanced protocols to win, use this as last resort
 	// if more than one protocol is supported
 
+
 	if($b['success'])
 		return;
+
+	logger('probing: gnusoc');
 
 	$protocol = $b['protocol'];
 	if($protocol && strtolower($protocol) !== 'ostatus')
@@ -1024,7 +1036,8 @@ function gnusoc_discover_channel_webfinger($a,&$b) {
 		dbesc($photos[3]),
 		dbesc($address)
 	);
-	
+
+	$b['xchan']   = $address;	
 	$b['success'] = true;
 
 }

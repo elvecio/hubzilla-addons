@@ -748,6 +748,8 @@ function diaspora_discover(&$b) {
 			dbesc($photos[3]),
 			dbesc($addr)
 		);
+
+		$b['xchan']   = $addr;
 		$b['success'] = true;
 	}
 }

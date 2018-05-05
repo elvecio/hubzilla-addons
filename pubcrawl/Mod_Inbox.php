@@ -72,13 +72,16 @@ class Inbox extends \Zotlabs\Web\Controller {
 
 			if($parent) {
 				//this is a comment - deliver to everybody who owns the parent
-				$channels = q("SELECT * from channel where channel_id in ( SELECT uid from item where ( mid = '%s' || mid = '%s' ) ) and channel_address != '%s'",
+				$channels = q("SELECT * from channel where channel_id in ( SELECT uid from item where ( mid = '%s' OR mid = '%s' ) ) and channel_address != '%s'",
 					dbesc($parent),
 					dbesc(basename($parent)),
 					dbesc(str_replace(z_root() . '/channel/', '', $observer_hash))
 				);
 			}
 			else {
+
+				// deliver to anybody following $AS->actor
+
 				$channels = q("SELECT * from channel where channel_id in ( SELECT abook_channel from abook left join xchan on abook_xchan = xchan_hash WHERE xchan_network = 'activitypub' and xchan_hash = '%s' ) and channel_removed = 0 ",
 					dbesc($observer_hash)
 				);
@@ -87,17 +90,20 @@ class Inbox extends \Zotlabs\Web\Controller {
 			if($channels === false)
 				$channels = [];
 
-			if(! $sys_disabled)
-				$channels[] = get_sys_channel();
 
 			if(in_array(ACTIVITY_PUBLIC_INBOX,$AS->recips)) {
 
 				// look for channels with send_stream = PERMS_PUBLIC
 
-				$r = q("select * from channel where channel_id in (select uid from pconfig where cat = 'perm_limits' and k = 'send_stream' and v = 1 ) and channel_removed = 0 ");
+				$r = q("select * from channel where channel_id in (select uid from pconfig where cat = 'perm_limits' and k = 'send_stream' and v = '1' ) and channel_removed = 0 ");
 				if($r) {
 					$channels = array_merge($channels,$r);
 				}
+
+				if(! $sys_disabled) {
+					$channels[] = get_sys_channel();
+				}
+
 			}
 
 		}

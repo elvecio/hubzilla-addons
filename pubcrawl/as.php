@@ -186,7 +186,7 @@ function asencode_item($i) {
 		'href' => $i['plink']
 	];
 
-	$ret['attributedTo'] = $i['owner']['xchan_addr'];
+	$ret['attributedTo'] = $i['author']['xchan_url'];
 
 	$cnv = null;
 
@@ -201,9 +201,19 @@ function asencode_item($i) {
 		$ret['conversation'] = $cnv;
 	}
 
-	$ret['content']   = bbcode($i['body']);
+	if(strpos($i['body'],'[/summary]') !== false) {
+		$match = '';
+		preg_match("/\[summary\](.*?)\[\/summary\]/ism",$i['body'],$match);
+		$ret['summary'] = $match[1];
 
-	$ret['actor']     = asencode_person($i['author']);
+		$body_content = preg_replace("/^(.*?)\[summary\](.*?)\[\/summary\](.*?)$/ism", '', $i['body']);
+		$ret['content'] = bbcode(trim($body_content));
+	}
+	else {
+		$ret['content'] = bbcode($i['body']);
+	}
+
+	$ret['actor'] = asencode_person($i['author']);
 
 	$t = asencode_taxonomy($i);
 	if($t) {
@@ -265,7 +275,10 @@ function asencode_taxonomy($item) {
 		foreach($item['term'] as $t) {
 			switch($t['ttype']) {
 				case TERM_HASHTAG:
-					$ret[] = [ 'id' => $t['url'], 'name' => '#' . $t['term'] ];
+					// An id is required so if we don't have a url in the taxonomy, ignore it and keep going.
+					if($t['url']) {
+						$ret[] = [ 'id' => $t['url'], 'name' => '#' . $t['term'] ];
+					}
 					break;
 
 				case TERM_MENTION:
@@ -367,11 +380,12 @@ function asencode_activity($i) {
 	if($i['id'] != $i['parent']) {
 		$ret['inReplyTo'] = ((strpos($i['parent_mid'],'http') === 0) ? $i['parent_mid'] : z_root() . '/item/' . urlencode($i['parent_mid']));
 
-		$d = q("select xchan_url from item left join xchan on xchan_hash = author_xchan where id = %d limit 1",
+		$d = q("select xchan_url, xchan_addr, xchan_name from item left join xchan on xchan_hash = author_xchan where id = %d limit 1",
 			intval($i['parent'])
 		);
 		if($d) {
 			$reply_url = $d[0]['xchan_url'];
+			$reply_addr = (($d[0]['xchan_addr']) ? $d[0]['xchan_addr'] : $d[0]['xchan_name']);
 		}
 
 		$reply = true;
@@ -411,18 +425,28 @@ function asencode_activity($i) {
 	}
 	elseif($reply) {
 		$ret['to'] = [ $reply_url ];
+
+		if($i['item_private']) {
+			$ret['tag'] = [
+				'type' => 'Mention',
+				'href' => $reply_url,
+				'name' => '@' . $reply_addr
+			];
+		}
 	}
 	else {
-		//$ret['bto'] = as_map_acl($i);
+		$ret['to'] = as_map_acl($i);
+		$m = as_map_acl($i,true);
+		$ret['tag'] = (($ret['tag']) ? array_merge($ret['tag'],$m) : $m);
 	}
 
 	if(in_array($ret['object']['type'], [ 'Note', 'Article' ])) {
 		if($ret['to'])
 			$ret['object']['to'] = $ret['to'];
-		//if($ret['bto'])
-		//	$ret['object']['bto'] = $ret['bto'];
 		if($ret['cc'])
 			$ret['object']['cc'] = $ret['cc'];
+		if($ret['tag'])
+			$ret['object']['tag'] = $ret['tag'];
 	}
 
 	return $ret;
@@ -444,7 +468,7 @@ function as_map_mentions($i) {
 	return $list;
 }
 
-function as_map_acl($i) {
+function as_map_acl($i,$mentions = false) {
 
 	$private = false;
 	$list = [];
@@ -457,11 +481,16 @@ function as_map_acl($i) {
 		$strict = get_config('activitypub','compliance');
 		$sql_extra = (($strict) ? " and xchan_network = 'activitypub' " : '');
 
-		$details = q("select xchan_url from xchan where xchan_hash in (" . implode(',',$x) . ") $sql_extra");
+		$details = q("select xchan_url, xchan_addr, xchan_name from xchan where xchan_hash in (" . implode(',',$x) . ") $sql_extra");
 
 		if($details) {
 			foreach($details as $d) {
-				$list[] = $d['xchan_url'];
+				if($mentions) {
+					$list[] = [ 'type' => 'Mention', 'href' => $d['xchan_url'], 'name' => '@' . (($d['xchan_addr']) ? $d['xchan_addr'] : $d['xchan_name']) ];
+				}
+				else { 
+					$list[] = $d['xchan_url'];
+				}
 			}
 		}
 	}
@@ -816,9 +845,9 @@ function as_follow($channel,$act) {
 	}
 
 
-	/* If there is a default group for this channel, add this member to it */
+	/* If there is a default group for this channel and permissions are automatic, add this member to it */
 
-	if($channel['channel_default_group']) {
+	if($channel['channel_default_group'] && $automatic) {
 		require_once('include/group.php');
 		$g = group_rec_byhash($channel['channel_id'],$channel['channel_default_group']);
 		if($g)
@@ -922,7 +951,6 @@ function as_actor_store($url,$person_obj) {
 	$r = q("select * from xchan where xchan_hash = '%s' limit 1",
 		dbesc($url)
 	);
-	
 	if(! $r) {
 		// create a new record
 		$r = xchan_store_lowlevel(
@@ -1045,13 +1073,13 @@ function as_create_note($channel,$observer_hash,$act) {
 	// Mastodon only allows visibility in public timelines if the public inbox is listed in the 'to' field.
 	// They are hidden in the public timeline if the public inbox is listed in the 'cc' field.
 	// This is not part of the activitypub protocol - we might change this to show all public posts in pubstream at some point.
-	$pubstream = ((array_key_exists('to', $act->obj) && in_array(ACTIVITY_PUBLIC_INBOX, $act->obj['to'])) ? true : false);
+	$pubstream = ((is_array($act->obj) && array_key_exists('to', $act->obj) && in_array(ACTIVITY_PUBLIC_INBOX, $act->obj['to'])) ? true : false);
 	$is_sys_channel = is_sys_channel($channel['channel_id']);
 
 	$parent = ((array_key_exists('inReplyTo',$act->obj)) ? urldecode($act->obj['inReplyTo']) : '');
 	if($parent) {
 
-		$r = q("select * from item where uid = %d and ( mid = '%s' || mid = '%s' ) limit 1",
+		$r = q("select * from item where uid = %d and ( mid = '%s' or  mid = '%s' ) limit 1",
 			intval($channel['channel_id']),
 			dbesc($parent),
 			dbesc(basename($parent))
@@ -1121,9 +1149,14 @@ function as_create_note($channel,$observer_hash,$act) {
 
 	if(! $s['parent_mid'])
 		$s['parent_mid'] = $s['mid'];
+
+	$summary = as_bb_content($content,'summary');
+
+	if($summary)
+		$summary = '[summary]' . $summary . '[/summary]';
 	
 	$s['title']    = as_bb_content($content,'name');
-	$s['body']     = as_bb_content($content,'content');
+	$s['body']     = $summary . as_bb_content($content,'content');
 	$s['verb']     = ACTIVITY_POST;
 	$s['obj_type'] = ACTIVITY_OBJ_NOTE;
 	$s['app']      = t('ActivityPub');
@@ -1194,6 +1227,9 @@ function as_create_note($channel,$observer_hash,$act) {
 		$s['item_private'] = 1;
 
 	set_iconfig($s,'activitypub','recips',$act->raw_recips);
+	if($parent) {
+		set_iconfig($s,'activitypub','rawmsg',$act->raw,1);
+	}
 
 	$r = q("select created, edited from item where mid = '%s' and uid = %d limit 1",
 		dbesc($s['mid']),
@@ -1222,7 +1258,7 @@ function as_announce_note($channel,$observer_hash,$act) {
 	// Mastodon only allows visibility in public timelines if the public inbox is listed in the 'to' field.
 	// They are hidden in the public timeline if the public inbox is listed in the 'cc' field.
 	// This is not part of the activitypub protocol - we might change this to show all public posts in pubstream at some point.
-	$pubstream = ((array_key_exists('to', $act->obj) && in_array(ACTIVITY_PUBLIC_INBOX, $act->obj['to'])) ? true : false);
+	$pubstream = ((is_array($act->obj) && array_key_exists('to', $act->obj) && in_array(ACTIVITY_PUBLIC_INBOX, $act->obj['to'])) ? true : false);
 
 	if(! perm_is_allowed($channel['channel_id'],$observer_hash,'send_stream') && ! ($is_sys_channel && $pubstream)) {
 		logger('no permission');
@@ -1345,7 +1381,7 @@ function as_like_note($channel,$observer_hash,$act) {
 	if(! $parent)
 		return;
 
-	$r = q("select * from item where uid = %d and ( mid = '%s' || mid = '%s' ) limit 1",
+	$r = q("select * from item where uid = %d and ( mid = '%s' or  mid = '%s' ) limit 1",
 		intval($channel['channel_id']),
 		dbesc($parent),
 		dbesc(urldecode(basename($parent)))

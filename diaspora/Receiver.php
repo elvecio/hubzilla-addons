@@ -162,9 +162,9 @@ class Diaspora_Receiver {
 			return;
 		}
 
-		/* If there is a default group for this channel, add this member to it */
+		/* If there is a default group for this channel and friending is automatic, add this member to it */
 
-		if($this->importer['channel_default_group']) {
+		if($this->importer['channel_default_group'] && $automatic) {
 			require_once('include/group.php');
 			$g = group_rec_byhash($this->importer['channel_id'],$this->importer['channel_default_group']);
 			if($g)
@@ -308,7 +308,7 @@ class Diaspora_Receiver {
 		$datarray = array();
 
 		// Look for tags and linkify them
-		$results = linkify_tags('', $body, $this->importer['channel_id'], true);
+		$results = linkify_tags('', $body, $this->importer['channel_id'], false);
 
 		$datarray['term'] = array();
 
@@ -355,13 +355,11 @@ class Diaspora_Receiver {
 		$cnt = preg_match_all('/@\[zrl=(.*?)\](.*?)\[\/zrl\]/ism',$body,$matches,PREG_SET_ORDER);
 		if($cnt) {
 			foreach($matches as $mtch) {
-				// don't include plustags in the term
-				$term = ((substr($mtch[2],-1,1) === '+') ? substr($mtch[2],0,-1) : $mtch[2]);
 				$datarray['term'][] = [
 					'uid'   => $this->importer['channel_id'],
 					'ttype' => TERM_MENTION,
 					'otype' => TERM_OBJ_POST,
-					'term'  => $term,
+					'term'  => $mtch[2],
 					'url'   => $mtch[1]
 				];
 			}
@@ -383,13 +381,11 @@ class Diaspora_Receiver {
 		$cnt = preg_match_all('/\!\[zrl=(.*?)\](.*?)\[\/zrl\]/ism',$body,$matches,PREG_SET_ORDER);
 		if($cnt) {
 			foreach($matches as $mtch) {
-				// don't include plustags in the term
-				$term = ((substr($mtch[2],-1,1) === '+') ? substr($mtch[2],0,-1) : $mtch[2]);
 				$datarray['term'][] = [
 					'uid'   => $this->importer['channel_id'],
 					'ttype' => TERM_FORUM,
 					'otype' => TERM_OBJ_POST,
-					'term'  => $term,
+					'term'  => $mtch[2],
 					'url'   => $mtch[1]
 				];
 			}
@@ -573,7 +569,7 @@ class Diaspora_Receiver {
 		$datarray = array();
 
 		// Look for tags and linkify them
-		$results = linkify_tags('', $body, $this->importer['channel_id'], true);
+		$results = linkify_tags('', $body, $this->importer['channel_id'], false);
 
 		$datarray['term'] = array();
 
@@ -608,13 +604,11 @@ class Diaspora_Receiver {
 		$cnt = preg_match_all('/@\[zrl=(.*?)\](.*?)\[\/zrl\]/ism',$body,$matches,PREG_SET_ORDER);
 		if($cnt) {
 			foreach($matches as $mtch) {
-				// don't include plustags in the term
-				$term = ((substr($mtch[2],-1,1) === '+') ? substr($mtch[2],0,-1) : $mtch[2]);
 				$datarray['term'][] = array(
 					'uid'   => $this->importer['channel_id'],
 					'ttype'  => TERM_MENTION,
 					'otype' => TERM_OBJ_POST,
-					'term'  => $term,
+					'term'  => $mtch[2],
 					'url'   => $mtch[1]
 				);
 			}
@@ -850,7 +844,7 @@ class Diaspora_Receiver {
 		$datarray = array();
 
 		// Look for tags and linkify them
-		$results = linkify_tags('', $body, $this->importer['channel_id'], true);
+		$results = linkify_tags('', $body, $this->importer['channel_id'], false);
 
 		$datarray['term'] = array();
 
@@ -885,13 +879,11 @@ class Diaspora_Receiver {
 		$cnt = preg_match_all('/@\[zrl=(.*?)\](.*?)\[\/zrl\]/ism',$body,$matches,PREG_SET_ORDER);
 		if($cnt) {
 			foreach($matches as $mtch) {
-				// don't include plustags in the term
-				$term = ((substr($mtch[2],-1,1) === '+') ? substr($mtch[2],0,-1) : $mtch[2]);
 				$datarray['term'][] = [
 					'uid'   => $this->importer['channel_id'],
 					'ttype' => TERM_MENTION,
 					'otype' => TERM_OBJ_POST,
-					'term'  => $term,
+					'term'  => $mtch[2],
 					'url'   => $mtch[1]
 				];
 			}
@@ -1755,7 +1747,13 @@ class Diaspora_Receiver {
 			return 202;
 		}
 
-		$name = unxmlify($this->xmlbase['first_name'] . (($this->xmlbase['last_name']) ? ' ' . $this->xmlbase['last_name'] : ''));
+		// full_name added to protocol 2018-04
+		if(array_key_exists('full_name',$this->xmlbase) && $this->xmlbase['full_name']) {
+			$name = unxmlify($this->xmlbase['full_name']);
+		}
+		else {
+			$name = unxmlify($this->xmlbase['first_name'] . (($this->xmlbase['last_name']) ? ' ' . $this->xmlbase['last_name'] : ''));
+		}
 		$image_url = unxmlify($this->xmlbase['image_url']);
 		$birthday = unxmlify($this->xmlbase['birthday']);
 
