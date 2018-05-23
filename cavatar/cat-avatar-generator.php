@@ -15,7 +15,11 @@
 // Note: this path end with / and is relative to the cat-avatar-generator.php file.
 $cachepath = 'cache/';
 
-function build_cat($seed=''){
+function build_cat($seed='',$size = 300){
+
+    if((! $size) || ($size > 300))
+		$size = 300;
+
     // init random seed
     if($seed) srand( hexdec(substr(md5($seed),0,6)) );
 
@@ -29,10 +33,12 @@ function build_cat($seed=''){
     );
 
     // create backgound
-    $cat = @imagecreatetruecolor(300, 300)
+    $cat = @imagecreatetruecolor($size, $size)
         or die("GD image create failed");
-    $white = imagecolorallocate($cat, 255, 255, 255);
+
+    $white = imagecolorallocatealpha($cat, 255, 255, 255, 127);
     imagefill($cat,0,0,$white);
+    imagesavealpha($cat, true);
 
     // add parts
     foreach($parts as $part => $num){
@@ -40,13 +46,19 @@ function build_cat($seed=''){
 
         $im = @imagecreatefrompng($file);
         if(!$im) die('Failed to load '.$file);
-        imageSaveAlpha($im, true);
-        imagecopy($cat,$im,0,0,0,0,300,300);
+
+	if($size === 300)
+		imagecopy($cat,$im,0,0,0,0,$size,$size);
+	else
+		imagecopyresampled( $cat, $im, 0, 0, 0, 0, $size, $size, 300, 300);
+
         imagedestroy($im);
     }
 
     // restore random seed
     if($seed) srand();
+
+    ob_start();
 
     header('Pragma: public');
     header('Cache-Control: max-age=86400');
@@ -54,6 +66,7 @@ function build_cat($seed=''){
     header('Content-Type: image/png');
     imagepng($cat, NULL, 9);
     imagedestroy($cat);
+    killme();
 }
 
 /*

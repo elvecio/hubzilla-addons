@@ -39,6 +39,7 @@ function pubcrawl_load() {
 		'queue_deliver'              => 'pubcrawl_queue_deliver',
 		'import_author'              => 'pubcrawl_import_author',
 		'channel_protocols'          => 'pubcrawl_channel_protocols',
+		'federated_transports'       => 'pubcrawl_federated_transports',
 		'create_identity'            => 'pubcrawl_create_identity'
 	]);
 }
@@ -53,6 +54,10 @@ function pubcrawl_channel_protocols(&$b) {
 	if(intval(get_pconfig($b['channel_id'],'system','activitypub_allowed')))
 		$b['protocols'][] = 'activitypub';
 
+}
+
+function pubcrawl_federated_transports(&$x) {
+	$x[] = 'ActivityPub';
 }
 
 
@@ -127,6 +132,9 @@ function pubcrawl_discover_channel_webfinger(&$b) {
 	logger('probing: activitypub');
 
 	if($protocol && strtolower($protocol) !== 'activitypub')
+		return;
+
+	if(! is_array($x))
 		return;
 
 	$address = EMPTY_STR;
@@ -358,11 +366,15 @@ function pubcrawl_channel_mod_init($x) {
 		if(! get_pconfig($chan['channel_id'],'system','activitypub_allowed'))
 			http_status_exit(404, 'Not found');
 
+		$y = asencode_person($chan);
+		if(! $y)
+			http_status_exit(404, 'Not found');
+
 		$x = array_merge(['@context' => [
 			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
 			z_root() . ZOT_APSCHEMA_REV
-			]], asencode_person($chan));
+			]], $y);
 
 
 		$headers = [];
@@ -443,6 +455,9 @@ function pubcrawl_notifier_process(&$arr) {
 
 	$target_item = $arr['target_item'];
 
+	if(! $target_item['mid'])
+		return;
+
 	$prv_recips = $arr['env_recips'];
 
 
@@ -450,11 +465,15 @@ function pubcrawl_notifier_process(&$arr) {
 		$jmsg = $signed_msg;
 	}
 	else {
+		$ti = asencode_activity($target_item);
+		if(! $ti)
+			return;
+
 		$msg = array_merge(['@context' => [
 			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
 			z_root() . ZOT_APSCHEMA_REV
-		]], asencode_activity($target_item));
+		]], $ti);
 	
 		$msg['signature'] = \Zotlabs\Lib\LDSignatures::dopplesign($msg,$arr['channel']);
 
@@ -603,11 +622,16 @@ function pubcrawl_connection_remove(&$x) {
 	if(! $channel)
 		return;
 
+	$p = asencode_person($channel);
+	if(! $p)
+		return;
+
 	// send an unfollow activity to the followee's inbox
 
 	$orig_activity = get_abconfig($recip[0]['abook_channel'],$recip[0]['xchan_hash'],'pubcrawl','follow_id');
 
 	if($orig_activity && $recip[0]['abook_pending']) {
+
 
 		// was never approved
 
@@ -620,12 +644,12 @@ function pubcrawl_connection_remove(&$x) {
 			[
 				'id'    => z_root() . '/follow/' . $recip[0]['abook_id'] . '#reject',
 				'type'  => 'Reject',
-				'actor' => asencode_person($channel),
+				'actor' => $p,
 				'object'     => [
 					'type'   => 'Follow',
 					'id'     => $orig_activity,
 					'actor'  => $recip[0]['xchan_hash'],
-					'object' => asencode_person($channel)
+					'object' => $p
 				],
 				'to' => [ $recip[0]['xchan_hash'] ]
 		]);
@@ -644,11 +668,11 @@ function pubcrawl_connection_remove(&$x) {
 			[
 				'id'    => z_root() . '/follow/' . $recip[0]['abook_id'] . '#Undo',
 				'type'  => 'Undo',
-				'actor' => asencode_person($channel),
+				'actor' => $p,
 				'object'     => [
 					'id'     => z_root() . '/follow/' . $recip[0]['abook_id'],
 					'type'   => 'Follow',
-					'actor'  => asencode_person($channel),
+					'actor'  => $p,
 					'object' => $recip[0]['xchan_hash']
 				],
 				'to' => [ $recip[0]['xchan_hash'] ]
@@ -687,6 +711,10 @@ function pubcrawl_permissions_create(&$x) {
 		return;
 	}
 
+	$p = asencode_person($x['sender']);
+	if(! $p)
+		return;
+
 	$msg = array_merge(['@context' => [
 			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
@@ -695,7 +723,7 @@ function pubcrawl_permissions_create(&$x) {
 		[
 			'id'     => z_root() . '/follow/' . $x['recipient']['abook_id'],
 			'type'   => 'Follow',
-			'actor'  => asencode_person($x['sender']),
+			'actor'  => $p,
 			'object' => $x['recipient']['xchan_url'],
 			'to'     => [ $x['recipient']['xchan_hash'] ]
 	]);
@@ -737,6 +765,10 @@ function pubcrawl_permissions_accept(&$x) {
 	if(! $accept)
 		return;
 
+	$p = asencode_person($x['sender']);
+	if(! $p)
+		return;
+
 	$msg = array_merge(['@context' => [
 			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
@@ -745,7 +777,7 @@ function pubcrawl_permissions_accept(&$x) {
 		[
 			'id'     => z_root() . '/follow/' . $x['recipient']['abook_id'],
 			'type'   => 'Accept',
-			'actor'  => asencode_person($x['sender']),
+			'actor'  => $p,
 			'object' => [
 				'type'   => 'Follow',
 				'id'     => $accept,
@@ -787,6 +819,9 @@ function pubcrawl_profile_mod_init($x) {
 		if(! get_pconfig($chan['channel_id'],'system','activitypub_allowed'))
 			http_status_exit(404, 'Not found');
 
+		$p = asencode_person($chan);
+		if(! $p)
+			http_status_exit(404, 'Not found');
 
 		$x = [
 			'@context' => [ 
@@ -795,7 +830,7 @@ function pubcrawl_profile_mod_init($x) {
 				z_root() . ZOT_APSCHEMA_REV
 			],
 			'type' => 'Profile',
-			'describes' => asencode_person($chan)
+			'describes' => $p
 		];
 				
 		$headers = [];
@@ -855,12 +890,16 @@ function pubcrawl_item_mod_init($x) {
 		if(! perm_is_allowed($chan['channel_id'],get_observer_hash(),'view_stream'))
 			http_status_exit(403, 'Forbidden');
 
+		$i = asencode_item($items[0]);
+		if(! $i)
+			http_status_exit(404, 'Not found');
+
 
 		$x = array_merge(['@context' => [
 			ACTIVITYSTREAMS_JSONLD_REV,
 			'https://w3id.org/security/v1',
 			z_root() . ZOT_APSCHEMA_REV
-			]], asencode_item($items[0]));
+			]], $i);
 
 
 		$headers = [];
@@ -994,6 +1033,11 @@ function pubcrawl_follow_mod_init($x) {
 		if(! $chan)
 			http_status_exit(404, 'Not found');
 
+		$actor = asencode_person($chan);
+		if(! $actor)
+			http_status_exit(404, 'Not found');
+
+
 		$x = array_merge(['@context' => [
 				ACTIVITYSTREAMS_JSONLD_REV,
 				'https://w3id.org/security/v1',
@@ -1002,7 +1046,7 @@ function pubcrawl_follow_mod_init($x) {
 			[
 				'id'     => z_root() . '/follow/' . $r[0]['abook_id'],
 				'type'   => 'Follow',
-				'actor'  => asencode_person($chan),
+				'actor'  => $actor,
 				'object' => $r[0]['xchan_url']
 		]);
 				
@@ -1107,7 +1151,7 @@ function pubcrawl_feature_settings(&$s) {
 	));
 
 	$s .= replace_macros(get_markup_template('generic_addon_settings.tpl'), array(
-		'$addon' 	=> array('pubcrawl', '<img src="addon/pubcrawl/pubcrawl.png" style="width:auto; height:1em; margin:-3px 5px 0px 0px;">' . t('ActivityPub Protocol Settings'), '', t('Submit')),
+		'$addon' 	=> array('pubcrawl', '<img src="addon/pubcrawl/activitypub.png" style="width:auto; height:1em; margin:-3px 5px 0px 0px;">' . t('ActivityPub Protocol Settings'), '', t('Submit')),
 		'$content'	=> $sc
 	));
 

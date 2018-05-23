@@ -105,10 +105,11 @@ function cart_myshop_main (&$pagecontent) {
 
 function cart_myshop_menu() {
 	$urlroot = '/' . argv(0) . '/' . argv(1) . '/myshop';
-	//$openorders=cart_myshop_get_openorders(null,10000,0);
+	$openorders=cart_myshop_get_openorders(null,10000,0);
 	$allorders=cart_myshop_get_allorders(null,10000,0);
-	//$closedorders=cart_myshop_get_closedorders(null,10000,0);
+	$closedorders=cart_myshop_get_closedorders(null,10000,0);
         $rendered = '';
+	$rendered .= "<a href='".$urlroot."'>Home</a><BR />";
 	//$rendered .= "<a href='".$urlroot."/openorders'>Open Orders (".count($openorders).")</a><BR />";
 	//$rendered .= "<a href='".$urlroot."/closedorders'>Closed Orders (".count($closedorders).")</a><BR />";
 	$rendered .= "<a href='".$urlroot."/allorders'>All Orders (".count($allorders).")</a><BR />";
@@ -341,6 +342,7 @@ function cart_myshop_aside (&$aside) {
 
 	$rendered = '';
 	$urlroot = '/' . argv(0) . '/' . argv(1) . '/myshop';
+	$rendered .= "<li><a href='".$urlroot."'>Home</a></li>";
         //$openorders=cart_myshop_get_openorders(null,10000,0);
 	$allorders=cart_myshop_get_allorders(null,10000,0);
 	//$closedorders=cart_myshop_get_closedorders(null,10000,0);
@@ -381,6 +383,8 @@ function cart_myshop_get_openorders ($search=null,$limit=100,$offset=1) {
   *   [""]
 ***/
   $seller_hash=get_observer_hash();
+
+/*
   $r=q("select distinct cart_orders.order_hash from cart_orders,cart_orderitems
         where cart_orders.order_hash = cart_orderitems.order_hash and
         seller_channel = '%s' and cart_orderitems.item_fulfilled is NULL
@@ -388,7 +392,16 @@ function cart_myshop_get_openorders ($search=null,$limit=100,$offset=1) {
         limit %d offset %d",
       dbesc($seller_hash),
       intval($limit), intval($offset));
+*/
 
+  $r=q("select distinct cart_orders.order_hash from cart_orders,cart_orderitems
+        where cart_orders.order_hash = cart_orderitems.order_hash and
+        seller_channel = '%s' and
+        cart_orderitems.item_fulfilled != true and
+        cart_orderitems.confirmed = true
+        limit %d offset %d",
+      dbesc($seller_hash),
+      intval($limit), intval($offset));
   if (!$r) {return Array();}
 
   $orders=Array();
@@ -404,7 +417,7 @@ function cart_myshop_get_closedorders ($search=null,$limit=100,$offset=1) {
   $r=q("select distinct order_hash from cart_orders where
         seller_channel = '%s' and
         cart_orders.order_hash not in (select order_hash from cart_orderitems
-        where item_fulfilled is not null)
+        where item_fulfilled is not NULL)
         limit %d offset %d",
       dbesc($seller_hash),
       intval($limit), intval($offset));

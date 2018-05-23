@@ -422,7 +422,13 @@ function get_diaspora_reshare_xml($url,$recurse = 0) {
 
 	logger('get_diaspora_reshare_xml: source: ' . $body, LOGGER_DEBUG);
 
-	$source_xml = xml2array($body,false,0,'tag');
+
+	$oxml = parse_xml_string($body,false);
+	$pxml = sxml2array($oxml);
+	$source_xml = [ strtolower($oxml->getName()) => $pxml ];
+
+
+	// $source_xml = xml2array($body,false,0,'tag');
 
 	if(! $source_xml) {
 		logger('get_diaspora_reshare_xml: unparseable result from ' . $url);

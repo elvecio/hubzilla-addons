@@ -3,7 +3,7 @@
 /**
  * Name: cart
  * Description: Core cart utilities for orders and payments
- * Version: 0.8
+ * Version: 0.9
  * Author: Matthew Dent <dentm42@dm42.net>
  * MinVersion: 2.8
  */
@@ -22,8 +22,11 @@
   */
 
 
-$cart_version = 0.5;
+$cart_version = 0.9;
 load_config("cart");
+//global $cart_submodules;
+$cart_submodules=Array("hzservices");
+
 $cart_manualpayments = get_pconfig ($id,'cart','enable_manual_payments');
 if ($cart_manualpayments) {
 	require_once("./manual_payments.php");
@@ -65,6 +68,12 @@ function cart_maybejson ($value,$options=0) {
     } else {
         return ($value);
     }
+}
+
+function cart_config_additemtype ($itemtype) {
+	$itemtypes=cart_getsysconfig("itemtypes");
+	$itemtypes["$itemtype"]=$itemtype;
+        cart_setsysconfig("itemtypes",$itemtypes);
 }
 
 function cart_dbCleanup () {
@@ -309,7 +318,8 @@ function cart_do_additem (&$hookdata) {
 
   $startcontent = $hookdata["content"];
 	$iteminfo=$hookdata["iteminfo"];
-	//$cart_itemtypes = cart_maybeunjson(get_pconfig("cart_itemtypes"));
+	//$cart_itemtypes = cart_maybeunjson(get_pconfig(\App::$profile_uid,'cart',"cart_itemtypes"));
+	$cart_itemtypes = cart_getsysconfig("itemtypes");
 	$required = Array("item_sku","item_qty","item_desc","item_price");
 	foreach ($required as $key) {
 		if (!array_key_exists($key,$iteminfo)) {
@@ -321,9 +331,11 @@ function cart_do_additem (&$hookdata) {
 	}
 	$order=cart_loadorder(cart_getorderhash(true));
 
+        logger("[cart] cart_do_additem ITEMINFO: ".print_r($iteminfo,true),LOGGER_DEBUG);
+        logger("[cart] cart_do_additem cart_itemtypes: ".print_r($cart_itemtypes,true),LOGGER_DEBUG);
 	$itemtype = isset($iteminfo["item_type"]) ? $iteminfo["item_type"] : null;
 
-	if ($itemtype && !array_has_key($cart_itemtypes,$iteminfo['item_type'])) {
+	if ($itemtype && !in_array($iteminfo['item_type'],$cart_itemtypes)) {
 		unset ($iteminfo['item_type']);
 	}
         $calldata['order'] = $order;
@@ -408,7 +420,7 @@ function cart_do_additem (&$hookdata) {
 		unset($calldata["error"]);
 	}
         notice (t('[cart] Item Added').EOL);
-        logger ("[cart] Added Item: ".print_r($calldata),LOGGER_DEBUG);
+        logger ("[cart] Added Item: ".print_r($calldata,true),LOGGER_DEBUG);
 }
 
 function cart_getorder_meta ($orderhash=null) {
@@ -534,7 +546,7 @@ function cart_do_updateitem (&$hookdata) {
 	$iteminfo=$hookdata["iteminfo"];
 	$required = Array("id");
 	foreach ($required as $key) {
-		if (!array_has_key($iteminfo,$key)) {
+		if (!array_key_exists($iteminfo,$key)) {
 			$hookdata["errorcontent"][]="[cart] Cannot update item, missing $key.";
 			$hookdata["error"][]=$calldata["error"];
 			return;
@@ -547,7 +559,7 @@ function cart_do_updateitem (&$hookdata) {
 	$startcontent=$hookdata["content"];
 
 	$itemtype = isset($iteminfo["item_type"]) ? $iteminfo["item_type"] : null;
-	if ($itemtype && !array_has_key($cart_itemtypes,$iteminfo['item_type'])) {
+        if ($itemtype && !in_array($iteminfo['item_type'],$cart_itemtypes)) {
 		unset ($iteminfo['item_type']);
 	}
 
@@ -686,7 +698,7 @@ function cart_do_display (&$hookdata) {
 
 	foreach ($order["items"] as $iteminfo) {
 		$itemtype = isset($iteminfo["item_type"]) ? $iteminfo["item_type"] : null;
-		if ($itemtype && !array_has_key($cart_itemtypes,$iteminfo['item_type'])) {
+                if ($itemtype && !in_array($iteminfo['item_type'],$cart_itemtypes)) {
 			continue;
 		}
 
@@ -770,7 +782,7 @@ function cart_do_checkout_before (&$hookdata) {
 
 	foreach ($order["items"] as $iteminfo) {
 		$itemtype = isset($iteminfo["item_type"]) ? $iteminfo["item_type"] : null;
-		if ($itemtype && !array_has_key($cart_itemtypes,$iteminfo['item_type'])) {
+                if ($itemtype && !in_array($iteminfo['item_type'],$cart_itemtypes)) {
 			continue;
 		}
 
@@ -842,7 +854,7 @@ function cart_do_checkout_after (&$hookdata) {
 
 	foreach ($order["items"] as $iteminfo) {
 		$itemtype = isset($iteminfo["item_type"]) ? $iteminfo["item_type"] : null;
-		if ($itemtype && !array_has_key($cart_itemtypes,$iteminfo['item_type'])) {
+                if ($itemtype && !in_array($iteminfo['item_type'],$cart_itemtypes)) {
 			continue;
 		}
 		$calldata = Array('item'=>$iteminfo);
@@ -880,7 +892,7 @@ function cart_do_orderpaid (&$hookdata) {
 	$startdata=isset($hookdata["content"]) ? $hookdata["content"] : null;
 	foreach ($order["items"] as $iteminfo) {
 		$itemtype = isset($iteminfo["item_type"]) ? $iteminfo["item_type"] : null;
-		if ($itemtype && !array_has_key($cart_itemtypes,$iteminfo['item_type'])) {
+                if ($itemtype && !in_array($iteminfo['item_type'],$cart_itemtypes)) {
 			continue;
 		}
 
@@ -924,10 +936,13 @@ function cart_checkver() {
 
 function cart_getsysconfig($param) {
 	logger ('[cart] getconfig ('.$param.')');
-	return get_config("cart",$param);
+	$val = get_config("cart",$param);
+	$val=cart_maybeunjson($val);
+	return $val;
 }
 
 function cart_setsysconfig($param,$val) {
+	  $val=cart_maybejson($val);
 		logger ('[cart] setsysconfig ('.$param.') as ('.$val.').',LOGGER_DEBUG);
 		return set_config("cart",$param,$val);
 }
@@ -957,7 +972,7 @@ function cart_setcartconfig($param,$val) {
 		return null;
 	}
 
-	return set_pconfig(local_channel(),"cart",$param);
+	return set_pconfig(local_channel(),"cart",$param,$val);
 }
 
 function cart_install() {
@@ -1013,6 +1028,7 @@ function cart_load(){
 	Zotlabs\Extend\Hook::register('cart_aside_filter','addon/cart/cart.php','cart_render_aside',1,10000);
 	Zotlabs\Extend\Hook::register('cart_after_fulfill','addon/cart/cart.php','cart_after_fulfill_finishorder',1,32000);
 	Zotlabs\Extend\Hook::register('cart_after_fulfill','addon/cart/cart.php','cart_fulfillitem_markfulfilled',1,31000);
+	Zotlabs\Extend\Hook::register('cart_get_catalog','addon/cart/cart.php','cart_get_test_catalog',1,0);
 
 	//cart_after_fullfill_finishorder
 
@@ -1023,6 +1039,16 @@ function cart_load(){
 	cart_manualpayments_load();
 	require_once("myshop.php");
 	cart_myshop_load();
+	global $cart_submodules;
+        $cart_submodules=Array("hzservices");
+        notice("MODULES: ".print_r($cart_submodules,true).EOL);
+	foreach ($cart_submodules as $module) {
+                notice ("Submodule-load: $module".EOL);
+		require_once('submodules/'.$module.".php");
+		$moduleclass = 'Cart_'.$module;
+                notice ("Loadclass: $moduleclass".EOL);
+		$moduleclass::load();
+	}
 }
 
 function cart_unload(){
@@ -1046,11 +1072,20 @@ function cart_unload(){
 	Zotlabs\Extend\Hook::unregister('cart_post_checkout_choosepayment','addon/cart/cart.php','cart_post_choose_payment');
 	Zotlabs\Extend\Hook::unregister('cart_aside_filter','addon/cart/cart.php','cart_render_aside');
 	Zotlabs\Extend\Hook::unregister('cart_after_fulfill','addon/cart/cart.php','cart_fulfillitem_markfulfilled',1,31000);
+	Zotlabs\Extend\Hook::unregister('cart_get_catalog','addon/cart/cart.php','cart_get_test_catalog',1,0);
+
 	require_once("manual_payments.php");
 	cart_manualpayments_unload();
 	require_once('myshop.php');
 	cart_myshop_unload();
-
+        global $cart_submodules;
+        $cart_submodules=Array("hzservices");
+	foreach ($cart_submodules as $module) {
+		require_once('submodules/'.$module.".php");
+		$moduleclass = 'Cart_'.$module;
+		$moduleclass::unload();
+	}
+	cart_delsysconfig("itemtypes");
 }
 
 function cart_module() { return; }
@@ -1169,12 +1204,16 @@ function cart_init() {
 
 function cart_post_add_item () {
 	$items=Array();
-	Zotlabs\Extend\Hook::insert('cart_get_catalog','cart_get_test_catalog',1,0);
-	call_hooks('cart_get_catalog',$items);
 
-	$newitem = $items[$_POST["add"]];
-        $newitem["item_qty"]=1;
+	call_hooks('cart_get_catalog',$items);
+	$item_sku = preg_replace('[^0-9A-Za-z\-]','',$_POST["add"]);
+	$newitem = $items[$item_sku];
+        logger("[cart] cart_post_add_item newitem: ".print_r($newitem,true),LOGGER_DEBUG);
+	$qty=isset($_POST["qty"]) ? preg_replace('[^0-9\.]','',$_POST['qty']) : 1;
+        $newitem["item_qty"]=$qty;
+
 	$hookdata=Array("content"=>'',"iteminfo"=>$newitem);
+        notice("ADD: ".print_r($newitem,true).EOL);
 	call_hooks('cart_do_additem',$hookdata);
 }
 
@@ -1266,15 +1305,8 @@ function cart_pagecontent($a=null) {
     if ((argc() >= 3) && (argv(2) == 'catalog')) {
 		$items = Array();
 
-		$testcatalog = get_pconfig ( \App::$profile['profile_uid'] ,'cart','enable_test_catalog');
-		$testcatalog = $testcatalog ? $testcatalog : 0;
-
-		if ($testcatalog) {
-			Zotlabs\Extend\Hook::insert('cart_get_catalog','cart_get_test_catalog',1,0);
-			logger ("TESTCATALOG: $testcatalog");
-		}
 		call_hooks('cart_get_catalog',$items);
-		call_hooks('cart_filter_catalog',$items);
+		call_hooks('cart_filter_catalog_display',$items);
 		if (count($items)<1) {
 			return "<H1>Catalog has no items</H1>";
 		}
@@ -1450,6 +1482,9 @@ function cart_post_choose_payment () {
 }
 
 function cart_get_test_catalog (&$items) {
+	$testcatalog = get_pconfig ( \App::$profile['profile_uid'] ,'cart','enable_test_catalog');
+	$testcatalog = $testcatalog ? $testcatalog : 0;
+	if (!$testcatalog) { return; }
 
 	if (!is_array($items)) {$items = Array();}
 
@@ -1468,13 +1503,17 @@ function cart_do_fulfillitem ($iteminfo) {
 
 	$orderhash=$iteminfo["order_hash"];
 	$order=cart_loadorder($orderhash);
-	$valid_itemtypes = cart_maybeunjson(get_pconfig("cart_itemtypes"));
-
+        $iteminfo = $order["items"][$iteminfo["id"]];
+	//$valid_itemtypes = cart_maybeunjson(get_pconfig(local_channel(),'cart','cart_itemtypes'));
+	$valid_itemtypes = cart_getsysconfig("itemtypes");
 	$itemtype = isset($iteminfo["item_type"]) ? $iteminfo["item_type"] : null;
-	if ($itemtype && !array_has_key($cart_itemtypes,$iteminfo['item_type'])) {
+        logger ("[cart] Fulfill Item: ".print_r($iteminfo,true),LOGGER_DEBUG);
+        logger ("[cart] Valid Item Types: ".print_r($valid_itemtypes,true),LOGGER_DEBUG);
+        if ($itemtype && !in_array($iteminfo['item_type'],$valid_itemtypes)) {
 		$itemtype=null;
 	}
 
+        logger ("[cart] Fulfill Item: [itemtype=] ".print_r($itemtype,true),LOGGER_DEBUG);
 	$calldata=Array();
         $calldata["orderid"]=$order["id"];
         $calldata['item']=$iteminfo;
@@ -1498,6 +1537,7 @@ function cart_do_fulfillitem ($iteminfo) {
 
 	if ($itemtype) {
 		$itemtypehook='cart_fulfill_'.$itemtype;
+                logger ("[cart] Fulfill Item: [callhook] ".$itemtypehook,LOGGER_DEBUG);
 		call_hooks($itemtypehook,$calldata);
 	}
 
@@ -1525,7 +1565,7 @@ function cart_fulfillitem_markfulfilled(&$hookdata) {
 
 function cart_fulfillitem_error($error,$itemid,$orderhash) {
 	$item_meta=cart_getitem_meta ($itemid,$orderhash);
-	$item_meta["notes"][]=date("Y-m-d h:i:sa T - ")."Error fulfilling item: ".$itemtofulfill["error"];
+	$item_meta["notes"][]=date("Y-m-d h:i:sa T - ")."Error fulfilling item: ".$error;
 
 	$r=q("update cart_orderitems set item_exception = true where order_hash = '%s' and id = %d",
 			dbesc($orderhash),intval($itemid));

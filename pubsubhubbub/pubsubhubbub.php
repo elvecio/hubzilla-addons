@@ -12,19 +12,35 @@
 
 
 function pubsubhubbub_install() {
-	$r = q("CREATE TABLE IF NOT EXISTS `push_subscriber` (
-	  `id` int(11) NOT NULL AUTO_INCREMENT,
-	  `callback_url` varchar(191) NOT NULL DEFAULT '',
-	  `topic` varchar(191) NOT NULL DEFAULT '',
-	  `last_update` datetime NOT NULL DEFAULT '0001-01-01 00:00:00',
-	  `secret` varchar(191) NOT NULL DEFAULT '',
-	  PRIMARY KEY (`id`)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-	if($r) {
-		q("alter table push_subscriber add index ( callback_url ) ");
-		q("alter table push_subscriber add index ( topic ) ");
-	}
+	if(ACTIVE_DBTYPE == DBTYPE_POSTGRES) {
+		$r = q("CREATE TABLE IF NOT EXISTS push_subscriber (
+		  id serial NOT NULL,
+		  callback_url text NOT NULL,
+		  topic text NOT NULL,
+		  last_update timestamp NOT NULL DEFAULT '0001-01-01 00:00:00',
+		  secret text NOT NULL,
+		  PRIMARY KEY (id) )"
+		);
 
+		if($r) {
+			q("create index callback_url_idx on push_subscriber ( callback_url )");
+			q("create index topic_idx on push_subscriber ( topic )");
+		}
+	}
+	else {
+		$r = q("CREATE TABLE IF NOT EXISTS push_subscriber (
+		  id int(11) NOT NULL AUTO_INCREMENT,
+		  callback_url varchar(191) NOT NULL DEFAULT '',
+		  topic varchar(191) NOT NULL DEFAULT '',
+		  last_update datetime NOT NULL DEFAULT '0001-01-01 00:00:00',
+		  secret varchar(191) NOT NULL DEFAULT '',
+		  PRIMARY KEY (id)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+		if($r) {
+			q("alter table push_subscriber add index ( callback_url ) ");
+			q("alter table push_subscriber add index ( topic ) ");
+		}
+	}
 }
 
 function pubsubhubbub_uninstall() {
@@ -358,7 +374,7 @@ function pubsubhubbub_init(&$a) {
 		}
 
 		// fetch the old subscription if it exists
-		$orig = q("SELECT * FROM `push_subscriber` WHERE `callback_url` = '%s'",
+		$orig = q("SELECT * FROM push_subscriber WHERE callback_url = '%s'",
 		  dbesc($hub_callback));
 
 		// delete old subscription if it exists

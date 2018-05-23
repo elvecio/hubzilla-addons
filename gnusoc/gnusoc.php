@@ -35,6 +35,7 @@ function gnusoc_load() {
 	register_hook('personal_xrd', 'addon/gnusoc/gnusoc.php', 'gnusoc_personal_xrd');
 	register_hook('follow_allow', 'addon/gnusoc/gnusoc.php', 'gnusoc_follow_allow');
 	register_hook('feature_settings_post', 'addon/gnusoc/gnusoc.php', 'gnusoc_feature_settings_post');
+	register_hook('federated_transports', 'addon/gnusoc/gnusoc.php', 'gnusoc_federated_transports');
 	register_hook('feature_settings', 'addon/gnusoc/gnusoc.php', 'gnusoc_feature_settings');
 	register_hook('follow', 'addon/gnusoc/gnusoc.php', 'gnusoc_follow_local');
 	register_hook('create_identity', 'addon/gnusoc/gnusoc.php', 'gnusoc_create_identity');
@@ -64,6 +65,8 @@ function gnusoc_unload() {
 	unregister_hook('personal_xrd', 'addon/gnusoc/gnusoc.php', 'gnusoc_personal_xrd');
 	unregister_hook('follow_allow', 'addon/gnusoc/gnusoc.php', 'gnusoc_follow_allow');
 	unregister_hook('feature_settings_post', 'addon/gnusoc/gnusoc.php', 'gnusoc_feature_settings_post');
+	unregister_hook('federated_transports', 'addon/gnusoc/gnusoc.php', 'gnusoc_federated_transports');
+
 	unregister_hook('feature_settings', 'addon/gnusoc/gnusoc.php', 'gnusoc_feature_settings');
 	unregister_hook('follow', 'addon/gnusoc/gnusoc.php', 'gnusoc_follow_local');
 	unregister_hook('create_identity', 'addon/gnusoc/gnusoc.php', 'gnusoc_create_identity');
@@ -98,6 +101,12 @@ function gnusoc_channel_protocols($a,&$b) {
 	if(intval(get_pconfig($b['channel_id'],'system','gnusoc_allowed')))
 		$b['protocols'][] = 'ostatus';
 
+}
+
+
+
+function gnusoc_federated_transports(&$a,&$x) {
+	$x[] = 'OStatus';
 }
 
 

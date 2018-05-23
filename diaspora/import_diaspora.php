@@ -86,7 +86,7 @@ function import_diaspora_account($data) {
 	}
 
 	$gender = escape_tags($pr['gender']);
-	$about = markdown_to_bb($pr['bio']);
+	$about = markdown_to_bb($pr['bio'], false, [ 'diaspora' => true ]);
 	$publish = intval($pr['searchable']);
 	if($pr['birthday'])
 		$dob = datetime_convert('UTC','UTC',$pr['birthday'],'Y-m-d');

@@ -27,6 +27,7 @@ function diaspora_load() {
 	Zotlabs\Extend\Hook::register_array('addon/diaspora/diaspora.php', [
 		'notifier_hub'                => 'diaspora_process_outbound',
 		'notifier_process'            => 'diaspora_notifier_process',
+		'federated_transports'        => 'diaspora_federated_transports',
 		'permissions_create'          => 'diaspora_permissions_create',
 		'permissions_update'          => 'diaspora_permissions_update',
 		'module_loaded'               => 'diaspora_load_module',
@@ -77,6 +78,10 @@ function diaspora_init_relay() {
 function diaspora_author_is_pmable(&$b) {
 	if($b['abook'] && (! intval($b['abook']['abook_not_here'])) && (strpos($b['xchan']['xchan_network'],'diaspora') !== false))
 		$b['result'] = true;
+}
+
+function diaspora_federated_transports(&$x) {
+	$x[] = 'Diaspora';
 }
 
 function diaspora_load_module(&$b) {
@@ -1105,7 +1110,11 @@ function diaspora_forum_mention_callback($matches) {
 
 
 
-function diaspora_markdown_to_bb_init(&$s) {
+function diaspora_markdown_to_bb_init(&$x) {
+
+	$s = $x['text'];
+	if(! (array_key_exists('diaspora',$x['options']) && intval($x['options']['diaspora'])))
+		return;
 
 	// if empty link text replace with the url
 	$s = preg_replace("/\[\]\((.*?)\)/ism",'[$1]($1)',$s);
@@ -1126,6 +1135,8 @@ function diaspora_markdown_to_bb_init(&$s) {
 	// fetch the post from the source if it isn't already available locally. 
 
 	$s = preg_replace('#diaspora://(.*?)/(.*?)/([^\s\]]*)#ism', z_root() . '/display/$3', $s);
+
+	$x['text'] = $s;
 
 }
 

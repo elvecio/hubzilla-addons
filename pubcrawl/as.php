@@ -74,6 +74,8 @@ function asfetch_item($x) {
 		dbesc($x['id'])
 	);
 	if($r) {
+		xchan_query($r,true);
+		$r = fetch_post_tags($r,true);
 		return asencode_item($r[0]);
 	}
 }
@@ -91,7 +93,9 @@ function asencode_item_collection($items,$id,$type,$extra = null) {
 	if($items) {
 		$x = [];
 		foreach($items as $i) {
-			$x[] = asencode_activity($i);
+			$t = asencode_activity($i);
+			if($t)
+				$x[] = $t;
 		}
 		if($type === 'OrderedCollection')
 			$ret['orderedItems'] = $x;
@@ -213,7 +217,11 @@ function asencode_item($i) {
 		$ret['content'] = bbcode($i['body']);
 	}
 
-	$ret['actor'] = asencode_person($i['author']);
+	$actor = asencode_person($i['author']);
+	if($actor)
+		$ret['actor'] = $actor;
+	else
+		return [];
 
 	$t = asencode_taxonomy($i);
 	if($t) {
@@ -379,40 +387,80 @@ function asencode_activity($i) {
 
 	if($i['id'] != $i['parent']) {
 		$ret['inReplyTo'] = ((strpos($i['parent_mid'],'http') === 0) ? $i['parent_mid'] : z_root() . '/item/' . urlencode($i['parent_mid']));
-
-		$d = q("select xchan_url, xchan_addr, xchan_name from item left join xchan on xchan_hash = author_xchan where id = %d limit 1",
-			intval($i['parent'])
-		);
-		if($d) {
-			$reply_url = $d[0]['xchan_url'];
-			$reply_addr = (($d[0]['xchan_addr']) ? $d[0]['xchan_addr'] : $d[0]['xchan_name']);
-		}
-
 		$reply = true;
+
+		if($i['item_private']) {
+			$d = q("select xchan_url, xchan_addr, xchan_name from item left join xchan on xchan_hash = author_xchan where id = %d limit 1",
+				intval($i['parent'])
+			);
+			if($d) {
+				$reply_url = $d[0]['xchan_url'];
+				$reply_addr = (($d[0]['xchan_addr']) ? $d[0]['xchan_addr'] : $d[0]['xchan_name']);
+			}
+		}
 	}
 
-
-	$ret['actor'] = asencode_person($i['author']);
+	$actor = asencode_person($i['author']);
+	if($actor)
+		$ret['actor'] = $actor;
+	else
+		return []; 
 
 	if($i['obj']) {
-		$ret['object'] = asencode_object($i['obj']);
+		$obj = asencode_object($i['obj']);
+		if($obj)
+			$ret['object'] = $obj;
+		else
+			return [];
 	}
 	else {
-		$ret['object'] = asencode_item($i);
+		$obj = asencode_item($i);
+		if($obj)
+			$ret['object'] = $obj;
+		else
+			return [];
 	}
-
 
 	if($i['target']) {
-		$ret['target'] = asencode_object($i['target']);
+		$tgt = asencode_object($i['target']);
+		if($tgt)
+			$ret['target'] = $tgt;
+		else
+			return [];
 	}
 
-	if(! $i['item_private']) {
-		$ret['to'] = [ ACTIVITY_PUBLIC_INBOX ];
-
-		if(!$reply && $i['item_origin']) {
-			$ret['cc'] = [ z_root() . '/followers/' . substr($i['owner']['xchan_addr'],0,strpos($i['owner']['xchan_addr'],'@')) ];
+	if($i['item_private']) {
+		if($reply) {
+			if($i['author_xchan'] == $i['owner_xchan']) {
+				$ret['to'] = [ $reply_url ];
+				$ret['cc'] = as_map_acl($i);
+				$m = as_map_acl($i,true);
+				$ret['tag'] = (($ret['tag']) ? array_merge($ret['tag'],$m) : $m);
+			}
+			else {
+				$ret['to'] = [ $reply_url ];
+				$ret['tag'] = [
+					'type' => 'Mention',
+					'href' => $reply_url,
+					'name' => '@' . $reply_addr
+				];
+			}
 		}
-
+		else {
+			$ret['to'] = as_map_acl($i);
+			$m = as_map_acl($i,true);
+			$ret['tag'] = (($ret['tag']) ? array_merge($ret['tag'],$m) : $m);
+		}
+	}
+	else {
+		if($reply) {
+			$ret['to'] = [ z_root() . '/followers/' . substr($i['author']['xchan_addr'],0,strpos($i['author']['xchan_addr'],'@')) ];
+			$ret['cc'] = [ ACTIVITY_PUBLIC_INBOX ];
+		}
+		else {
+			$ret['to'] = [ ACTIVITY_PUBLIC_INBOX ];
+			$ret['cc'] = [ z_root() . '/followers/' . substr($i['author']['xchan_addr'],0,strpos($i['author']['xchan_addr'],'@')) ];
+		}
 		$mentions = as_map_mentions($i);
 		if(count($mentions) > 0) {
 			if(! $ret['cc']) {
@@ -423,23 +471,7 @@ function asencode_activity($i) {
 			}
 		}
 	}
-	elseif($reply) {
-		$ret['to'] = [ $reply_url ];
-
-		if($i['item_private']) {
-			$ret['tag'] = [
-				'type' => 'Mention',
-				'href' => $reply_url,
-				'name' => '@' . $reply_addr
-			];
-		}
-	}
-	else {
-		$ret['to'] = as_map_acl($i);
-		$m = as_map_acl($i,true);
-		$ret['tag'] = (($ret['tag']) ? array_merge($ret['tag'],$m) : $m);
-	}
-
+	
 	if(in_array($ret['object']['type'], [ 'Note', 'Article' ])) {
 		if($ret['to'])
 			$ret['object']['to'] = $ret['to'];
@@ -502,7 +534,11 @@ function as_map_acl($i,$mentions = false) {
 
 function asencode_person($p) {
 
+	if(! $p['xchan_url'])
+		return [];
+
 	$ret = [];
+
 	$ret['type']  = 'Person';
 	$ret['id']    = $p['xchan_url'];
 	if($p['xchan_addr'] && strpos($p['xchan_addr'],'@'))
@@ -1161,6 +1197,15 @@ function as_create_note($channel,$observer_hash,$act) {
 	$s['obj_type'] = ACTIVITY_OBJ_NOTE;
 	$s['app']      = t('ActivityPub');
 
+
+	if($channel['channel_system']) {
+		if(! \Zotlabs\Lib\MessageFilter::evaluate($s,get_config('system','pubstream_incl'),get_config('system','pubstream_excl'))) {
+			logger('post is filtered');
+			return;
+		}
+	}
+
+
 	if($abook) {
 		if(! post_is_importable($s,$abook[0])) {
 			logger('post is filtered');
@@ -1187,10 +1232,10 @@ function as_create_note($channel,$observer_hash,$act) {
 			if(strpos($img['type'],'image') !== false) {
 				$s['body'] .= "\n\n" . '[img]' . $img['href'] . '[/img]';
 			}
-			if(array_key_exists('mediaType',$img) && strpos('video',$img['mediaType']) === 0) {
+			if(array_key_exists('type',$img) && strpos($img['type'], 'video') === 0) {
 				$s['body'] .= "\n\n" . '[video]' . $img['href'] . '[/video]';
  			}
-			if(array_key_exists('mediaType',$img) && strpos('audio',$img['mediaType']) === 0) {
+			if(array_key_exists('type',$img) && strpos($img['type'], 'audio') === 0) {
 				$s['body'] .= "\n\n" . '[audio]' . $img['href'] . '[/audio]';
  			}
 		}
@@ -1201,10 +1246,17 @@ function as_create_note($channel,$observer_hash,$act) {
 	// standard content region
 
 	if($act->obj['type'] === 'Video') {
+
+		$vtypes = [
+			'video/mp4',
+			'video/ogg',
+			'video/webm'
+		];
+
 		$mps = [];
 		if(array_key_exists('url',$act->obj) && is_array($act->obj['url'])) {
 			foreach($act->obj['url'] as $vurl) {
-				if($vurl['mediaType'] === 'video/mp4') {
+				if(in_array($vurl['mimeType'], $vtypes)) {
 					if(! array_key_exists('width',$vurl)) {
 						$vurl['width'] = 0;
 					}
@@ -1231,6 +1283,8 @@ function as_create_note($channel,$observer_hash,$act) {
 		set_iconfig($s,'activitypub','rawmsg',$act->raw,1);
 	}
 
+	$x = null;
+
 	$r = q("select created, edited from item where mid = '%s' and uid = %d limit 1",
 		dbesc($s['mid']),
 		intval($s['uid'])
@@ -1245,6 +1299,22 @@ function as_create_note($channel,$observer_hash,$act) {
 	}
 	else {
 		$x = item_store($s);
+	}
+
+	if(is_array($x) && $x['item_id']) {
+		if($parent) {
+			if($s['owner_xchan'] === $channel['channel_hash']) {
+				// We are the owner of this conversation, so send all received comments back downstream
+				Zotlabs\Daemon\Master::Summon(array('Notifier','comment-import',$x['item_id']));
+			}
+			$r = q("select * from item where id = %d limit 1",
+				intval($x['item_id'])
+			);
+			if($r) {
+				send_status_notifications($x['item_id'],$r[0]);
+			}
+		}
+		sync_an_item($channel['channel_id'],$x['item_id']);
 	}
 
 }
@@ -1290,6 +1360,13 @@ function as_announce_note($channel,$observer_hash,$act) {
 	$s['verb']     = ACTIVITY_POST;
 	$s['obj_type'] = ACTIVITY_OBJ_NOTE;
 	$s['app']      = t('ActivityPub');
+
+	if($channel['channel_system']) {
+		if(! \Zotlabs\Lib\MessageFilter::evaluate($s,get_config('system','pubstream_incl'),get_config('system','pubstream_excl'))) {
+			logger('post is filtered');
+			return;
+		}
+	}
 
 	$abook = q("select * from abook where abook_xchan = '%s' and abook_channel = %d limit 1",
 		dbesc($observer_hash),

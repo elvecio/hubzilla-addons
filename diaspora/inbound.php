@@ -99,7 +99,7 @@ function diaspora_dispatch($importer,$msg) {
 	 * @FIXME
 	 * We're using parse_xml_string() with some additional hacks to make the output resemble the simple case of xml2array() 
 	 * Ideally we^H^Hyou should figure out what's wrong with libxml and figure out how to get the correct output from xml2array()
-	 * or get the root cause fixed upstream in libxml and php.
+	 * or get the root cause fixed upstream in libxml and php. Change here and in diaspora/util.php
 	 */
 
 	$oxml = parse_xml_string($msg['message'],false);
